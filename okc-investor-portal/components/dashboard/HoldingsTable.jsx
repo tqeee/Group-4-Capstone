@@ -1,43 +1,20 @@
+// Real data from dataset 5.4
 const holdings = [
   {
-    fund: 'OKC Global Equity Opportunities',
-    tag: 'Long-only · Developed mkts',
-    marketValue: '$819,016',
-    dayPnl: '+$3,446',
-    dayPct: '+0.42%',
-    mtd: '+1.2%',
-    ytd: '+8.92%',
-    inception: '+18.4%',
-    share: '63.8%',
-    positive: true,
-  },
-  {
-    fund: 'OKC Investment Grade Fixed Income',
-    tag: 'IG credit · Duration 4.2y',
-    marketValue: '$320,279',
-    dayPnl: '-$256',
-    dayPct: '-0.08%',
-    mtd: '+0.3%',
-    ytd: '+3.24%',
-    inception: '+9.1%',
-    share: '24.9%',
+    fund: 'OKC XAUUSD Fund',
+    tag: 'Gold (XAU/USD) · Active trading strategy',
+    marketValue: '$34,061.15',
+    dayPnl: '-$1.20',
+    dayPct: '-0.00%',
+    mtd: '-$9,381.31',
+    ytd: '-31.88%',
+    inception: '-$15,938.85',
+    share: '100%',
     positive: false,
-  },
-  {
-    fund: 'OKC Asia Balanced',
-    tag: 'Multi-asset · APAC focus',
-    marketValue: '$145,197',
-    dayPnl: '+$305',
-    dayPct: '+0.21%',
-    mtd: '+0.8%',
-    ytd: '+5.12%',
-    inception: '+12.6%',
-    share: '11.3%',
-    positive: true,
   },
 ];
 
-const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'MTD', 'YTD', 'SINCE INCEPTION', 'SHARE'];
+const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'APR MTD', 'SINCE INCEPTION', 'TOTAL P&L', 'SHARE'];
 
 export default function HoldingsTable() {
   return (
@@ -59,23 +36,43 @@ export default function HoldingsTable() {
                 <p className="text-sm font-semibold text-gray-900">{h.fund}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{h.tag}</p>
               </td>
-              <td className="py-4 pr-6 text-sm font-semibold text-gray-900">{h.marketValue}</td>
+              <td className="py-4 pr-6 text-sm font-semibold text-gray-900">
+                {h.marketValue}
+              </td>
               <td className={`py-4 pr-6 text-sm font-medium ${h.positive ? 'text-green-600' : 'text-red-500'}`}>
                 <p>{h.dayPnl}</p>
                 <p className="text-xs">{h.dayPct}</p>
               </td>
-              <td className="py-4 pr-6 text-sm text-gray-600">{h.mtd}</td>
+              <td className="py-4 pr-6 text-sm text-red-500 font-medium">
+                {h.mtd}
+              </td>
+              <td className="py-4 pr-6 text-sm text-red-500 font-medium">
+                {h.inception}
+              </td>
               <td className={`py-4 pr-6 text-sm font-medium ${h.ytd.startsWith('+') ? 'text-green-600' : 'text-red-500'}`}>
                 {h.ytd}
-              </td>
-              <td className={`py-4 pr-6 text-sm font-medium ${h.inception.startsWith('+') ? 'text-green-600' : 'text-red-500'}`}>
-                {h.inception}
               </td>
               <td className="py-4 text-sm text-gray-600">{h.share}</td>
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+
+      {/* Footer info */}
+      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-6 text-xs text-gray-400">
+        <div>
+          <span className="font-medium text-gray-600">Initial deposit: </span>
+          $50,000.00 · 17 Mar 2026
+        </div>
+        <div>
+          <span className="font-medium text-gray-600">Instrument: </span>
+          XAUUSD (Gold / US Dollar)
+        </div>
+        <div>
+          <span className="font-medium text-gray-600">Total trades: </span>
+          282 closed positions
+        </div>
+      </div>
     </div>
   );
 }
