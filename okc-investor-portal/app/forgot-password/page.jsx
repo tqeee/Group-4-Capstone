@@ -18,11 +18,13 @@ export default function ForgotPasswordPage() {
         }}
       >
         <div className="max-w-2xl">
+          
           {/* Branding */}
           <div className="mb-20 flex items-baseline gap-8">
             <span className="text-8xl font-extrabold tracking-tight text-white">
               OKC
             </span>
+
             <span className="text-4xl font-medium tracking-[0.28em] text-[#6ea0ff]">
               PARTNERS
             </span>
@@ -32,32 +34,35 @@ export default function ForgotPasswordPage() {
           <h1 className="mb-7 text-5xl font-bold leading-tight">
             Your Portfolio,
             <br />
-            <span className="text-[#1f6bff]">Crystal Clear</span>
+            <span className="text-[#1f6bff]">
+              Crystal Clear
+            </span>
           </h1>
 
           {/* Description */}
           <p className="mb-12 max-w-xl text-xl leading-9 text-blue-100/90">
-            Access real-time portfolio performance, track your P&amp;L, and
-            manage your investments through our secure investor portal.
+            Access real-time portfolio performance, track your P&amp;L,
+            and manage your investments through our secure investor portal.
           </p>
-
         </div>
       </section>
 
       {/* RIGHT PANEL */}
       <section className="flex w-1/2 items-center justify-center bg-[#fbfcff] px-24">
         <div className="w-full max-w-xl">
+
           <h2 className="mb-4 text-5xl font-bold text-[#071437]">
             Reset password
           </h2>
 
           <p className="mb-14 text-xl leading-8 text-[#6b7894]">
-            Enter your email address and we&apos;ll send you a link to reset
-            your password
+            Enter your email address and we&apos;ll send you a link
+            to reset your password
           </p>
 
           <form>
             <div className="mb-8">
+
               <label className="mb-3 block text-lg font-medium text-slate-900">
                 Email address
               </label>
@@ -91,13 +96,16 @@ export default function ForgotPasswordPage() {
   );
 }
 
-function Feature({ icon, text }: { icon: string; text: string }) {
+function Feature({ icon, text }) {
   return (
     <div className="flex items-center gap-5">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0d47a1]/70 text-xl">
         {icon}
       </div>
-      <p className="text-xl font-medium text-white">{text}</p>
+
+      <p className="text-xl font-medium text-white">
+        {text}
+      </p>
     </div>
   );
 }
