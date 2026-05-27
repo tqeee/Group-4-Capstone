@@ -1,7 +1,17 @@
 'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export default function DashboardLayout({ children }) {
-  const navItems = ['Dashboard', 'Funds', 'Activity', 'Reports', 'Documents'];
+  const pathname = usePathname();
+
+  const navItems = [
+    { label: 'Dashboard', href: '/investor' },
+    { label: 'Funds', href: '/funds' },
+    { label: 'Activity', href: '/activity' },
+    { label: 'Reports', href: '/reports' },
+    { label: 'Documents', href: '/documents' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -15,16 +25,17 @@ export default function DashboardLayout({ children }) {
           </div>
           <div className="flex gap-6">
             {navItems.map(item => (
-              <button
-                key={item}
-                className={`text-sm pb-1 ${
-                  item === 'Dashboard'
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`text-sm pb-1 transition ${
+                  pathname === item.href
                     ? 'text-gray-900 font-semibold border-b-2 border-blue-700'
                     : 'text-gray-400 hover:text-gray-700'
                 }`}
               >
-                {item}
-              </button>
+                {item.label}
+              </Link>
             ))}
           </div>
         </div>
