@@ -2,56 +2,92 @@
 -- 1. DATABASE EXTENSIONS & WORKSPACE SETUP
 -- ---------------------------------------------------------------------------
  -- It injects cryptographic and hashing functions directly into your database.  
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- Also for automatic gen_random_uuid()
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- For automatic gen_random_uuid()
 
 -- Case-Insensitive Text (Emails for eg. Investor@gmail,com is the same as investor@gmail.com by using this extension
 CREATE EXTENSION IF NOT EXISTS "citext";     
 
 CREATE SCHEMA IF NOT EXISTS investor_portal_db;
-SET search_path TO investor_portal_db, public;
+SET search_path = 'investor_portal_db', public;
 
 -- ---------------------------------------------------------------------------
 -- 2. ENUM TYPE REGISTRATIONS (BUSINESS CONSTRAINTS)
 -- ---------------------------------------------------------------------------
 CREATE TYPE user_role AS ENUM ('investor', 'operations', 'admin');
+CREATE TYPE auth_action_type AS ENUM (
+    'LOGIN_SUCCESS',
+    'LOGIN_FAILURE',
+    'LOGOUT',
+    'MFA_CHALLENGE',
+    'MFA_VERIFIED',
+    'MFA_FAILED',
+    'PASSWORD_RESET_REQUEST',
+    'PASSWORD_RESET_SUCCESS',
+    'ACCOUNT_LOCKOUT',
+    'INVITATION_SENT',
+    'INVITATION_ACCEPTED',
+    'SESSION_EXPIRED',
+    'ROLE_CHANGED'
+);
 CREATE TYPE flow_type AS ENUM ('deposit', 'withdrawal');
 CREATE TYPE flow_status AS ENUM ('pending', 'approved', 'processed', 'rejected');
 CREATE TYPE broker_deal_type AS ENUM ('buy', 'sell', 'balance');
 CREATE TYPE broker_entry_direction AS ENUM ('IN', 'OUT');
 
 -- ---------------------------------------------------------------------------
--- 3. IDENTITY & SYSTEM ACCESS LAYERS
+-- 3. FEATURE 3.1  AUTHENTICATION AND ACCOUNT MANAGEMENT
 -- ---------------------------------------------------------------------------
-CREATE TABLE users (
+CREATE TABLE investor_portal_db.users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email CITEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT NOT NULL, -- bcrypt / Argon2id hash; never plaintext
     role user_role NOT NULL DEFAULT 'investor',
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active BOOLEAN NOT NULL DEFAULT FALSE, -- turns true only when invitation is accpeted 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 -- Dataset 5.1 (Active Investor Accounts)
-CREATE TABLE investors (
+CREATE TABLE investor_portal_db.investors (
     investor_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID UNIQUE REFERENCES users(user_id) ON DELETE RESTRICT,
-    investor_code VARCHAR(50) NOT NULL UNIQUE, -- E.g., 'INV-001'
     full_name VARCHAR(255) NOT NULL,
     onboarding_date DATE NOT NULL DEFAULT CURRENT_DATE
 );
 
-CREATE TABLE funds ( 
+-- Invitation‑based investor onboarding (no public self‑registration)
+CREATE TABLE investor_portal_db.invitation (
+    invitation_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    assigned_role user_role NOT NULL,
+    invited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT(NOW() + INTERVAL '72 hours')
+);
+ 
+CREATE TABLE investor_portal_db.audit_logs (
+    log_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- if a user account is deleted, this will be set to null
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    action auth_action_type NOT NULL,
+    metadata JSONB,
+    ip_address TEXT, 
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    
+);
+
+
+-- ---------------------------------------------------------------------------
+-- 4. TRANSACTIONAL LEDGERS
+-- ---------------------------------------------------------------------------
+CREATE TABLE investor_portal_db.funds ( 
     fund_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     fund_code VARCHAR(50) NOT NULL UNIQUE,   
     base_currency CHAR(3) NOT NULL DEFAULT 'SGD',
     inception_date DATE NOT NULL DEFAULT CURRENT_DATE
 );
 
--- ---------------------------------------------------------------------------
--- 4. TRANSACTIONAL LEDGERS
--- ---------------------------------------------------------------------------
 -- Dataset 5.2 (External Fund Flow Submissions)
-CREATE TABLE fund_flows (
+CREATE TABLE investor_portal_db.fund_flows (
     request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     investor_id UUID NOT NULL REFERENCES investors(investor_id) ON DELETE RESTRICT,
     fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE RESTRICT,
@@ -61,12 +97,12 @@ CREATE TABLE fund_flows (
     request_amount NUMERIC(18, 4) NOT NULL CHECK (request_amount > 0),
     request_currency    CHAR(3)     NOT NULL
                             CHECK (request_currency ~ '^[A-Z]{3}$'),
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Dataset 5.4 (Broker Stream Ingestion Layer)
-CREATE TABLE raw_broker_transactions (
+CREATE TABLE investor_portal_db.raw_broker_transactions (
     raw_txn_id BIGSERIAL PRIMARY KEY, 
     fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE RESTRICT,
     ticket BIGINT NOT NULL UNIQUE,                         -- Broker Ticket Reference ID
@@ -88,7 +124,7 @@ CREATE TABLE raw_broker_transactions (
 -- 5. VALUATION & INVESTOR TRACK RECORDS
 -- ---------------------------------------------------------------------------
 -- Dataset 5.3 (Fund Daily Net Asset Value Summaries)
-CREATE TABLE fund_daily_nav (
+CREATE TABLE investor_portal_db.fund_daily_nav (
     nav_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE RESTRICT,
     nav_date DATE NOT NULL,
@@ -103,7 +139,7 @@ CREATE TABLE fund_daily_nav (
 );
 
 -- Dataset 5.3 (Individual Investor Share/Balance Records)
-CREATE TABLE investor_fund_holdings (
+CREATE TABLE investor_portal_db.investor_fund_holdings (
     holding_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     investor_id UUID NOT NULL REFERENCES investors(investor_id) ON DELETE RESTRICT,
     fund_id UUID NOT NULL REFERENCES funds(fund_id) ON DELETE RESTRICT,
