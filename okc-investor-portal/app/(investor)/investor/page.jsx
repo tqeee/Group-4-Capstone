@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import StatCard from '@/components/dashboard/StatCard';
 import PortfolioChart from '@/components/dashboard/PortfolioChart';
@@ -40,6 +40,14 @@ const allChartData = [
 ];
 
 export default function InvestorDashboard() {
+  return (
+    <Suspense fallback={<div className="text-sm text-gray-400">Loading portfolio summary...</div>}>
+      <InvestorDashboardContent />
+    </Suspense>
+  );
+}
+
+function InvestorDashboardContent() {
   const [activeFilter, setActiveFilter] = useState('All');
   
   // Read query filters reactively from search layout bar
