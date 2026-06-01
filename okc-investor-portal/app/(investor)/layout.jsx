@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,6 +12,7 @@ export default function DashboardLayout({ children }) {
     { label: 'Activity', href: '/activity' },
     { label: 'Reports', href: '/reports' },
     { label: 'Documents', href: '/documents' },
+    { label: 'Request Transaction', href: '/request-transaction' },
   ];
 
   return (
