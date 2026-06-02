@@ -1,6 +1,6 @@
 'use client';
-import { Suspense, useState, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import StatCard from '@/components/dashboard/StatCard';
 import PortfolioChart from '@/components/dashboard/PortfolioChart';
 import HoldingsTable from '@/components/dashboard/HoldingsTable';
@@ -40,15 +40,9 @@ const allChartData = [
 ];
 
 export default function InvestorDashboard() {
-  return (
-    <Suspense fallback={<div className="text-sm text-gray-400">Loading portfolio summary...</div>}>
-      <InvestorDashboardContent />
-    </Suspense>
-  );
-}
-
-function InvestorDashboardContent() {
   const [activeFilter, setActiveFilter] = useState('All');
+
+  const router = useRouter();
   
   // Read query filters reactively from search layout bar
   const searchParams = useSearchParams();
@@ -212,7 +206,10 @@ function InvestorDashboardContent() {
             <button className="border border-gray-200 text-gray-600 text-sm px-4 py-2 rounded-lg hover:bg-gray-50 whitespace-nowrap">
               Download statement
             </button>
-            <button className="bg-blue-700 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-800 whitespace-nowrap">
+            <button
+              onClick={() => router.push('/request-transaction')}
+              className="bg-blue-700 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-800 whitespace-nowrap"
+            >
               Request transaction
             </button>
           </div>
