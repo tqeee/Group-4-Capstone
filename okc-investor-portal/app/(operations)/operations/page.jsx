@@ -51,7 +51,7 @@ const queueItems = [
     icon: 'document',
     iconTone: 'bg-blue-100 text-blue-700',
     badgeTone: 'bg-blue-100 text-blue-700',
-    href: '/transactions',
+    href: '/ops-transactions',
   },
   {
     label: 'Investor Inquiries',

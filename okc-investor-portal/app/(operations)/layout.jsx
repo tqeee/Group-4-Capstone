@@ -8,11 +8,10 @@ export default function OperationsLayout({ children }) {
 
   const navItems = [
     { label: 'Dashboard', href: '/operations' },
-    { label: 'Transactions', href: '/transactions' },
+    { label: 'Transactions', href: '/ops-transactions' },
     { label: 'Data Import', href: '/data-import' },
     { label: 'Investors', href: '/investors' },
     { label: 'Operation Log', href: '/operation-log' },
-    { label: 'Inquiries', href: '/inquiries' },
   ];
 
   const isActive = href => pathname === href || (href !== '/operations' && pathname.startsWith(`${href}/`));
