@@ -44,7 +44,7 @@ export default function AdminOverview() {
         </div>
       </div>
 
-      {/* Stat Cards - Stacked on mobile, 2x2 on tablet, 4x1 on desktop */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {stats.map((stat, i) => (
           <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 min-w-0 break-words">
@@ -60,7 +60,7 @@ export default function AdminOverview() {
       {/* Grid splits down to vertical stack on tablets or below */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Investor summary — 100% on tablet/mobile, 2/3 width on desktop */}
+        {/* Investor summary */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6 min-w-0">
           <div className="flex items-end justify-between mb-4 gap-2">
             <div>

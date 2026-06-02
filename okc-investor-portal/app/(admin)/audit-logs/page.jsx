@@ -52,7 +52,7 @@ export default function AuditLogsPage() {
         </p>
       </div>
 
-      {/* Stats — Fluid breakdown grid */}
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'TOTAL EVENTS', value: logs.length, red: false },
@@ -67,7 +67,7 @@ export default function AuditLogsPage() {
         ))}
       </div>
 
-      {/* Filters + search toolbar — Stacks beautifully on small windows */}
+      {/* Filters + search toolbar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div className="flex flex-wrap gap-2">
           {filters.map(f => (

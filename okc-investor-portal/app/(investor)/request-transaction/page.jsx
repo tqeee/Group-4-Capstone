@@ -1,59 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
-const summaryCards = [
-  {
-    label: 'Pending Transactions',
-    value: '1',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      </svg>
-    ),
-    tone: 'text-amber-500 bg-amber-50',
-  },
-  {
-    label: 'Pending Amount',
-    value: '$10,000.00',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-      </svg>
-    ),
-    tone: 'text-blue-600 bg-blue-50',
-  },
-  {
-    label: 'Total Requests',
-    value: '1',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-2.13a4 4 0 1 0-8 0 4 4 0 0 0 8 0zm6 0a4 4 0 1 0-5.3 3.78" />
-      </svg>
-    ),
-    tone: 'text-gray-500 bg-gray-100',
-  },
-];
-
-const tabs = [
-  'Pending (1)',
-  'Approved (0)',
-  'Completed (0)',
-  'Rejected (0)',
-  'All (1)',
-];
-
-const requests = [
+// Unified data array containing both historical actions from activity log and active pipeline requests
+const initialRequests = [
   {
     request: 'FF-q8eqk6qc',
     investor: 'Faye Cheah',
-    investorId: 'INV-002',
+    investorId: 'INV-204812',
     type: 'Deposit',
     amount: '$10,000.00',
     date: 'May 27, 2026',
     status: 'Pending Review',
   },
+  {
+    request: 'TXN-001',
+    investor: 'Faye Cheah',
+    investorId: 'INV-204812', 
+    type: 'Deposit', // Restored missing type
+    amount: '$50,000.00',
+    date: '17 Mar 2026',
+    status: 'Completed',
+  },
+  {
+    request: 'TXN-022',
+    investor: 'Faye Cheah',
+    investorId: 'INV-204812',
+    type: 'Withdrawal',
+    amount: '$10,000.00',
+    date: '15 Apr 2026',
+    status: 'Completed',
+  }
 ];
+
+// Helper tools to parse strings smoothly for runtime calculations
+const parseAmount = (str) => parseFloat(str.replace(/[+$,\s]/g, '')) || 0;
 
 function RequestTypeCard({ isSelected, label, description, onClick, children }) {
   return (
@@ -83,16 +64,16 @@ function RequestTypeCard({ isSelected, label, description, onClick, children }) 
   );
 }
 
-function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClose }) {
+function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClose, onSubmit }) {
   const submitLabel = requestType === 'deposit' ? 'Submit Deposit' : 'Submit Withdrawal';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-gray-950/45 px-4 py-8 backdrop-blur-sm sm:py-14">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 backdrop-blur-sm">
       <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-blue-950/20">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">New request</p>
-            <h2 className="mt-1 text-2xl font-bold text-gray-900">New Fund Flow Request</h2>
+            <p className="text-xs font-bold uppercase tracking-widest text-blue-600">New Request</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900">New Fund Flow Request</h2>
           </div>
           <button
             type="button"
@@ -167,6 +148,7 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
           </button>
           <button
             type="button"
+            onClick={onSubmit}
             className="rounded-2xl bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-300"
             disabled={!amount}
           >
@@ -179,30 +161,79 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
 }
 
 function RequestTransactionContent() {
-  const [activeTab, setActiveTab] = useState('Pending (1)');
+  const [requestsList, setRequestsList] = useState(initialRequests);
+  const [activeTab, setActiveTab] = useState('Pending');
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
   const [requestType, setRequestType] = useState('deposit');
   const [amount, setAmount] = useState('');
 
-  const filteredRequests =
-    activeTab === 'All (1)'
-      ? requests
-      : requests.filter((request) =>
-          request.status.toLowerCase().includes(
-            activeTab.split(' ')[0].toLowerCase()
-          )
-        );
+  const counts = useMemo(() => {
+    return {
+      pending: requestsList.filter(r => r.status.toLowerCase().includes('pending')).length,
+      approved: requestsList.filter(r => r.status === 'Approved' || r.status === 'Completed').length,
+      completed: requestsList.filter(r => r.status === 'Completed').length,
+      rejected: requestsList.filter(r => r.status === 'Rejected').length,
+      all: requestsList.length,
+    };
+  }, [requestsList]);
+
+  const tabs = [
+    { id: 'Pending', label: `Pending (${counts.pending})` },
+    { id: 'Approved', label: `Approved (${counts.approved})` },
+    { id: 'Rejected', label: `Rejected (${counts.rejected})` },
+    { id: 'Completed', label: `Completed (${counts.completed})` },
+    { id: 'All', label: `All (${counts.all})` },
+  ];
+
+  const metrics = useMemo(() => {
+    const pendingItems = requestsList.filter(r => r.status.toLowerCase().includes('pending'));
+    const totalPendingAmt = pendingItems.reduce((acc, curr) => acc + parseAmount(curr.amount), 0);
+    
+    return {
+      pendingCount: pendingItems.length,
+      pendingAmountStr: `$${totalPendingAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      totalRequests: requestsList.length,
+    };
+  }, [requestsList]);
+
+  const filteredRequests = useMemo(() => {
+    if (activeTab === 'All') return requestsList;
+    if (activeTab === 'Approved') {
+      return requestsList.filter(r => r.status === 'Approved' || r.status === 'Completed');
+    }
+    return requestsList.filter((request) =>
+      request.status.toLowerCase().includes(activeTab.toLowerCase())
+    );
+  }, [activeTab, requestsList]);
+
+  const handleCreateRequest = () => {
+    const formattedAmount = parseFloat(amount);
+    if (isNaN(formattedAmount) || formattedAmount <= 0) return;
+
+    const newRow = {
+      request: `FF-${Math.random().toString(36).substring(2, 11)}`,
+      investor: 'Faye Cheah',
+      investorId: 'INV-204812',
+      type: requestType.charAt(0).toUpperCase() + requestType.slice(1),
+      amount: `$${formattedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      status: 'Pending Review',
+    };
+
+    setRequestsList([newRow, ...requestsList]);
+    setAmount('');
+    setIsNewRequestOpen(false);
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-gray-500 text-sm mb-1">Good morning, <b>Faye</b>!</p>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Request Transaction</h1>
             <p className="text-gray-500 mt-2">Review your deposit and withdrawal requests.</p>
           </div>
-          <div className="flex flex-col items-start gap-3 sm:items-end">
+          <div>
             <button
               type="button"
               onClick={() => setIsNewRequestOpen(true)}
@@ -213,40 +244,60 @@ function RequestTransactionContent() {
               </svg>
               New Request
             </button>
-            <span className="text-xs text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
-              Investor request center
-            </span>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {summaryCards.map(card => (
-          <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex items-center gap-4">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${card.tone}`}>
-              {card.icon}
-            </div>
-            <div>
-              <p className="text-sm text-gray-400 font-medium">{card.label}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-            </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-amber-500 bg-amber-50">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
           </div>
-        ))}
+          <div>
+            <p className="text-sm text-gray-400 font-medium">Pending Transactions</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.pendingCount}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-blue-600 bg-blue-50">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 font-medium">Pending Amount</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.pendingAmountStr}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gray-500 bg-gray-100">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-2.13a4 4 0 1 0-8 0 4 4 0 0 0 8 0zm6 0a4 4 0 1 0-5.3 3.78" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400 font-medium">Total Requests</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{metrics.totalRequests}</p>
+          </div>
+        </div>
       </div>
 
       <div className="inline-flex rounded-xl bg-white border border-gray-200 p-1 shadow-sm overflow-x-auto max-w-full">
         {tabs.map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
-              activeTab === tab
+              activeTab === tab.id
                 ? 'bg-blue-700 text-white shadow-sm'
                 : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
-            {tab}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -257,7 +308,6 @@ function RequestTransactionContent() {
             <thead>
               <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 <th className="px-6 py-4">Request</th>
-                <th className="px-6 py-4">Investor</th>
                 <th className="px-6 py-4">Type</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Date</th>
@@ -270,23 +320,31 @@ function RequestTransactionContent() {
                   <tr key={request.request} className="border-b border-gray-50 last:border-0">
                     <td className="px-6 py-5 font-semibold text-gray-700">{request.request}</td>
                     <td className="px-6 py-5">
-                      <p className="font-semibold text-gray-900">{request.investor}</p>
-                      <p className="text-xs text-gray-400 mt-1">{request.investorId}</p>
-                    </td>
-                    <td className="px-6 py-5">
                       <span className="inline-flex items-center gap-2 font-medium text-gray-700">
-                        <span className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 19V5m0 0-5 5m5-5 5 5" />
-                          </svg>
-                        </span>
+                        {request.type === 'Deposit' ? (
+                          <span className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 19V5m0 0-5 5m5-5 5 5" />
+                            </svg>
+                          </span>
+                        ) : (
+                          <span className="w-5 h-5 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 5v14m0 0-5-5m5 5 5-5" />
+                            </svg>
+                          </span>
+                        )}
                         {request.type}
                       </span>
                     </td>
-                    <td className="px-6 py-5 font-bold text-emerald-500">{request.amount}</td>
+                    <td className={`px-6 py-5 font-bold ${request.type === 'Deposit' ? 'text-emerald-500' : 'text-orange-500'}`}>
+                      {request.amount}
+                    </td>
                     <td className="px-6 py-5 text-gray-500">{request.date}</td>
                     <td className="px-6 py-5">
-                      <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
+                      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                        request.status === 'Completed' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                         </svg>
@@ -297,7 +355,7 @@ function RequestTransactionContent() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                  <td colSpan={5} className="px-6 py-10 text-center text-gray-400">
                     No requests found for this status.
                   </td>
                 </tr>
@@ -314,6 +372,7 @@ function RequestTransactionContent() {
           amount={amount}
           setAmount={setAmount}
           onClose={() => setIsNewRequestOpen(false)}
+          onSubmit={handleCreateRequest}
         />
       )}
     </div>
