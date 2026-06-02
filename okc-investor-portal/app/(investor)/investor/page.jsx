@@ -40,6 +40,14 @@ const allChartData = [
 ];
 
 export default function InvestorDashboard() {
+  return (
+    <Suspense fallback={<div className="text-sm text-gray-400">Loading portfolio summary...</div>}>
+      <InvestorDashboardContent />
+    </Suspense>
+  );
+}
+
+function InvestorDashboardContent() {
   const [activeFilter, setActiveFilter] = useState('All');
 
   const router = useRouter();
