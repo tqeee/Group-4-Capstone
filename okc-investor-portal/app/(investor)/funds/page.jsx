@@ -33,8 +33,8 @@ export default function FundsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Funds</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <h1 className="page-title">Funds</h1>
+        <p className="page-subtitle">
           Your current fund allocations and performance.
         </p>
       </div>
@@ -109,7 +109,7 @@ export default function FundsPage() {
 
       {/* Expanded detail panel */}
       {selected !== null && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="card p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-bold text-gray-900">

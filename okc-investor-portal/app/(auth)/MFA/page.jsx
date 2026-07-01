@@ -16,7 +16,7 @@ export default function MFAPage() {
     >
       {/* MFA Card */}
       <section className="w-full max-w-5xl rounded-3xl bg-white px-16 py-14 shadow-2xl">
-        
+
         {/* Logo */}
         <div className="mb-14 flex items-end gap-6">
           <span className="text-7xl font-extrabold tracking-tight text-black">
@@ -58,6 +58,3 @@ export default function MFAPage() {
     </main>
   );
 }
-
-
-

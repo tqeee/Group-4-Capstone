@@ -80,8 +80,8 @@ export default function DocumentsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Documents</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <h1 className="page-title">Documents</h1>
+        <p className="page-subtitle">
           Your account statements, fund documents, and tax records.
         </p>
       </div>
@@ -91,11 +91,11 @@ export default function DocumentsPage() {
         {documents.map((section, si) => (
           <div key={si}>
             {/* Section label */}
-            <p className="text-xs text-gray-400 font-medium tracking-wide uppercase mb-3">
+            <p className="section-label uppercase mb-3">
               {section.category}
             </p>
 
-            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
+            <div className="card divide-y divide-gray-50">
               {section.items.map((doc, di) => (
                 <div
                   key={di}

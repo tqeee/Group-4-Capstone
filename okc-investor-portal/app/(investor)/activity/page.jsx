@@ -80,8 +80,8 @@ export default function ActivityPage() {
     <div>
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Activity</h1>
-        <p className="text-gray-400 text-sm mt-1">All transactions and daily P&L updates across your funds.</p>
+        <h1 className="page-title">Activity</h1>
+        <p className="page-subtitle">All transactions and daily P&L updates across your funds.</p>
       </div>
 
       {/* Toolbar Options Menu Grid */}
@@ -92,10 +92,8 @@ export default function ActivityPage() {
             <button
               key={f}
               onClick={() => setActiveFilter(f)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                activeFilter === f
-                  ? 'bg-blue-700 text-white'
-                  : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-700'
+              className={`pill whitespace-nowrap ${
+                activeFilter === f ? 'pill-active' : 'pill-inactive'
               }`}
             >
               {f}
@@ -125,13 +123,13 @@ export default function ActivityPage() {
       </div>
 
       {/* Activity Table Container with horizontal overflow handler */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin">
           <table className="w-full min-w-[800px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
                 {['DATE', 'TRANSACTION ID', 'TYPE', 'FUND', 'AMOUNT', 'STATUS'].map(h => (
-                  <th key={h} className="text-left text-xs text-gray-400 font-medium px-6 py-4 tracking-wider">
+                  <th key={h} className="table-header-cell tracking-wider">
                     {h}
                   </th>
                 ))}
@@ -140,10 +138,10 @@ export default function ActivityPage() {
             <tbody className="divide-y divide-gray-50">
               {processedActivities.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50/80 transition">
-                  <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{item.date}</td>
-                  <td className="px-6 py-4 text-sm font-mono text-gray-400 whitespace-nowrap">{item.id}</td>
+                  <td className="table-cell text-gray-500">{item.date}</td>
+                  <td className="table-cell font-mono text-gray-400">{item.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                    <span className={`badge ${
                       item.type === 'Deposit' ? 'bg-blue-50 text-blue-600'
                       : item.type === 'Withdrawal' ? 'bg-orange-50 text-orange-500'
                       : 'bg-gray-100 text-gray-600'
@@ -151,12 +149,12 @@ export default function ActivityPage() {
                       {item.type}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{item.fund}</td>
-                  <td className={`px-6 py-4 text-sm font-semibold whitespace-nowrap ${item.positive ? 'text-green-600' : 'text-red-500'}`}>
+                  <td className="table-cell text-gray-700">{item.fund}</td>
+                  <td className={`table-cell font-semibold ${item.positive ? 'text-green-600' : 'text-red-500'}`}>
                     {item.amount}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusStyle[item.status]}`}>
+                    <span className={`badge ${statusStyle[item.status]}`}>
                       {item.status}
                     </span>
                   </td>
