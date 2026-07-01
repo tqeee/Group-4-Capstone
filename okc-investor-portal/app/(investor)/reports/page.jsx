@@ -1,50 +1,6 @@
 'use client';
 import { useState } from 'react';
 
-const monthlyData = [
-  {
-    month: 'March 2026',
-    tradingDays: 9,
-    totalPnl: -6557.54,
-    startValue: 50000.00,
-    endValue: 43442.46,
-    return: -13.12,
-    wins: 8,
-    losses: 13,
-    trades: 21,
-  },
-  {
-    month: 'April 2026',
-    tradingDays: 7,
-    totalPnl: -9381.31,
-    startValue: 43442.46,
-    endValue: 34061.15,
-    return: -21.59,
-    wins: 4,
-    losses: 11,
-    trades: 15,
-  },
-];
-
-const dailyData = [
-  { date: '17 Mar 2026', pnl: -1510.63, value: 48489.37, trades: 4 },
-  { date: '18 Mar 2026', pnl: -507.20, value: 47982.17, trades: 2 },
-  { date: '19 Mar 2026', pnl: 844.37, value: 48826.54, trades: 3 },
-  { date: '20 Mar 2026', pnl: -1930.44, value: 46896.10, trades: 4 },
-  { date: '23 Mar 2026', pnl: -723.27, value: 46172.83, trades: 3 },
-  { date: '24 Mar 2026', pnl: 225.17, value: 46398.00, trades: 2 },
-  { date: '25 Mar 2026', pnl: -1291.36, value: 45106.64, trades: 3 },
-  { date: '26 Mar 2026', pnl: 968.47, value: 46075.11, trades: 3 },
-  { date: '27 Mar 2026', pnl: 845.19, value: 46920.30, trades: 2 },
-  { date: '30 Mar 2026', pnl: -1417.81, value: 45502.49, trades: 3 },
-  { date: '31 Mar 2026', pnl: -2060.03, value: 43442.46, trades: 3 },
-  { date: '1 Apr 2026', pnl: -1434.73, value: 42007.73, trades: 3 },
-  { date: '2 Apr 2026', pnl: -7154.65, value: 34853.08, trades: 4 },
-  { date: '6 Apr 2026', pnl: -3110.50, value: 34726.22, trades: 2 }, 
-  { date: '7 Apr 2026', pnl: -1420.20, value: 34062.35, trades: 3 }, 
-  { date: '8 Apr 2026', pnl: -1.20, value: 34061.15, trades: 1 },
-];
-
 const tabs = ['Overview', 'Monthly', 'Daily'];
 
 const formatCurrency = (value, includeSign = true) => {
@@ -58,16 +14,69 @@ const formatPercent = (value) => {
   return value >= 0 ? `+${absValue}%` : `-${absValue}%`;
 };
 
-export default function ReportsPage() {
+export default function ReportsPage({
+  // Fallback defaults allow the portal to run seamlessly until the API integration hook is active
+  initialMonthlyData = [
+    {
+      month: 'March 2026',
+      tradingDays: 9,
+      totalPnl: -6557.54,
+      startValue: 50000.00,
+      endValue: 43442.46,
+      return: -13.12,
+      wins: 8,
+      losses: 13,
+      trades: 21,
+    },
+    {
+      month: 'April 2026',
+      tradingDays: 7,
+      totalPnl: -9381.31,
+      startValue: 43442.46,
+      endValue: 34061.15,
+      return: -21.59,
+      wins: 4,
+      losses: 11,
+      trades: 15,
+    },
+  ],
+  initialDailyData = [
+    { date: '17 Mar 2026', pnl: -1510.63, value: 48489.37, trades: 4 },
+    { date: '18 Mar 2026', pnl: -507.20, value: 47982.17, trades: 2 },
+    { date: '19 Mar 2026', pnl: 844.37, value: 48826.54, trades: 3 },
+    { date: '20 Mar 2026', pnl: -1930.44, value: 46896.10, trades: 4 },
+    { date: '23 Mar 2026', pnl: -723.27, value: 46172.83, trades: 3 },
+    { date: '24 Mar 2026', pnl: 225.17, value: 46398.00, trades: 2 },
+    { date: '25 Mar 2026', pnl: -1291.36, value: 45106.64, trades: 3 },
+    { date: '26 Mar 2026', pnl: 968.47, value: 46075.11, trades: 3 },
+    { date: '27 Mar 2026', pnl: 845.19, value: 46920.30, trades: 2 },
+    { date: '30 Mar 2026', pnl: -1417.81, value: 45502.49, trades: 3 },
+    { date: '31 Mar 2026', pnl: -2060.03, value: 43442.46, trades: 3 },
+    { date: '1 Apr 2026', pnl: -1434.73, value: 42007.73, trades: 3 },
+    { date: '2 Apr 2026', pnl: -7154.65, value: 34853.08, trades: 4 },
+    { date: '6 Apr 2026', pnl: -3110.50, value: 34726.22, trades: 2 }, 
+    { date: '7 Apr 2026', pnl: -1420.20, value: 34062.35, trades: 3 }, 
+    { date: '8 Apr 2026', pnl: -1.20, value: 34061.15, trades: 1 },
+  ]
+}) {
   const [activeTab, setActiveTab] = useState('Overview');
 
-  const totalPnl = -15938.85;
-  const totalTrades = 36;
-  const totalWins = 12;
-  const totalLosses = 24;
-  const winRate = ((totalWins / totalTrades) * 100).toFixed(1);
-  const bestDay = dailyData.reduce((a, b) => a.pnl > b.pnl ? a : b);
-  const worstDay = dailyData.reduce((a, b) => a.pnl < b.pnl ? a : b);
+  // Derive dynamic overview metrics based on current props
+  const totalPnl = initialMonthlyData.reduce((acc, current) => acc + current.totalPnl, 0);
+  const totalTrades = initialMonthlyData.reduce((acc, current) => acc + current.trades, 0);
+  const totalWins = initialMonthlyData.reduce((acc, current) => acc + current.wins, 0);
+  const totalLosses = initialMonthlyData.reduce((acc, current) => acc + current.losses, 0);
+  const totalTradingDays = initialMonthlyData.reduce((acc, current) => acc + current.tradingDays, 0);
+  
+  const winRate = totalTrades > 0 ? ((totalWins / totalTrades) * 100).toFixed(1) : '0.0';
+  
+  const bestDay = initialDailyData.length > 0 
+    ? initialDailyData.reduce((a, b) => a.pnl > b.pnl ? a : b) 
+    : { date: 'N/A', pnl: 0 };
+    
+  const worstDay = initialDailyData.length > 0 
+    ? initialDailyData.reduce((a, b) => a.pnl < b.pnl ? a : b) 
+    : { date: 'N/A', pnl: 0 };
 
   return (
     <div>
@@ -99,13 +108,13 @@ export default function ReportsPage() {
       {/* OVERVIEW TAB */}
       {activeTab === 'Overview' && (
         <div>
-          {/* Summary cards - Made responsive so it doesn't break on small panels */}
+          {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
               { label: 'TOTAL P&L', value: formatCurrency(totalPnl), sub: 'Since 17 Mar 2026', red: totalPnl < 0 },
               { label: 'OVERALL RETURN', value: formatPercent(-31.88), sub: 'vs $50,000 deposit', red: true },
               { label: 'WIN RATE', value: `${winRate}%`, sub: `${totalWins}W / ${totalLosses}L`, red: false },
-              { label: 'TRADING DAYS', value: '16 days', sub: '17 Mar – 8 Apr 2026', red: false },
+              { label: 'TRADING DAYS', value: `${totalTradingDays} days`, sub: '17 Mar – 8 Apr 2026', red: false },
             ].map((item, i) => (
               <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
                 <p className="text-xs text-gray-400 font-medium tracking-wide mb-2">{item.label}</p>
@@ -117,7 +126,7 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          {/* Best / Worst day + fund info - Made responsive */}
+          {/* Best / Worst day + fund info*/}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <p className="text-xs text-gray-400 font-medium tracking-wide mb-4">BEST & WORST TRADING DAYS</p>
@@ -168,7 +177,6 @@ export default function ReportsPage() {
       {/* MONTHLY TAB */}
       {activeTab === 'Monthly' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {/* Enabled safe responsive horizontal scrolling layout container */}
           <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[800px]">
               <thead>
@@ -181,8 +189,8 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {monthlyData.map((row, i) => {
-                  const winRate = ((row.wins / row.trades) * 100).toFixed(0);
+                {initialMonthlyData.map((row, i) => {
+                  const currentWinRate = row.trades > 0 ? ((row.wins / row.trades) * 100).toFixed(0) : '0';
                   return (
                     <tr key={i} className="hover:bg-gray-50/50 transition">
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">{row.month}</td>
@@ -201,10 +209,10 @@ export default function ReportsPage() {
                           <div className="flex-1 bg-gray-100 rounded-full h-1.5 w-16">
                             <div
                               className="bg-blue-500 h-1.5 rounded-full"
-                              style={{ width: `${winRate}%` }}
+                              style={{ width: `${currentWinRate}%` }}
                             ></div>
                           </div>
-                          <span className="text-xs text-gray-500">{winRate}%</span>
+                          <span className="text-xs text-gray-500">{currentWinRate}%</span>
                         </div>
                       </td>
                     </tr>
@@ -214,13 +222,13 @@ export default function ReportsPage() {
               <tfoot>
                 <tr className="border-t border-gray-200 bg-gray-50 font-semibold">
                   <td className="px-6 py-4 text-sm font-bold text-gray-900 whitespace-nowrap">Total</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">16</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{totalTradingDays}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{formatCurrency(50000, false)}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{formatCurrency(34061.15, false)}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-red-500 whitespace-nowrap">{formatCurrency(-15938.85)}</td>
+                  <td className={`px-6 py-4 text-sm font-bold whitespace-nowrap ${totalPnl >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatCurrency(totalPnl)}</td>
                   <td className="px-6 py-4 text-sm font-bold text-red-500 whitespace-nowrap">{formatPercent(-31.88)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">36</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">33.3%</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{totalTrades}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{winRate}%</td>
                 </tr>
               </tfoot>
             </table>
@@ -231,7 +239,6 @@ export default function ReportsPage() {
       {/* DAILY TAB */}
       {activeTab === 'Daily' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {/* Enabled safe responsive horizontal scrolling layout container */}
           <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[650px]">
               <thead>
@@ -244,9 +251,9 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {dailyData.map((row, i) => {
-                  const prevValue = i === 0 ? 50000 : dailyData[i - 1].value;
-                  const changePct = (row.pnl / prevValue) * 100;
+                {initialDailyData.map((row, i) => {
+                  const prevValue = i === 0 ? 50000 : initialDailyData[i - 1].value;
+                  const changePct = prevValue !== 0 ? (row.pnl / prevValue) * 100 : 0;
                   return (
                     <tr key={i} className="hover:bg-gray-50/50 transition">
                       <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">{row.date}</td>

@@ -2,39 +2,11 @@
 
 import { useState, useMemo } from 'react';
 
-// Unified data array containing both historical actions from activity log and active pipeline requests
-const initialRequests = [
-  {
-    request: 'FF-q8eqk6qc',
-    investor: 'Faye Cheah',
-    investorId: 'INV-204812',
-    type: 'Deposit',
-    amount: '$10,000.00',
-    date: 'May 27, 2026',
-    status: 'Pending Review',
-  },
-  {
-    request: 'TXN-001',
-    investor: 'Faye Cheah',
-    investorId: 'INV-204812', 
-    type: 'Deposit', // Restored missing type
-    amount: '$50,000.00',
-    date: '17 Mar 2026',
-    status: 'Completed',
-  },
-  {
-    request: 'TXN-022',
-    investor: 'Faye Cheah',
-    investorId: 'INV-204812',
-    type: 'Withdrawal',
-    amount: '$10,000.00',
-    date: '15 Apr 2026',
-    status: 'Completed',
-  }
-];
-
 // Helper tools to parse strings smoothly for runtime calculations
-const parseAmount = (str) => parseFloat(str.replace(/[+$,\s]/g, '')) || 0;
+const parseAmount = (str) => {
+  if (typeof str === 'number') return str;
+  return parseFloat(str.replace(/[+$,\s]/g, '')) || 0;
+};
 
 function RequestTypeCard({ isSelected, label, description, onClick, children }) {
   return (
@@ -160,7 +132,7 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
   );
 }
 
-function RequestTransactionContent() {
+function RequestTransactionContent({ initialRequests }) {
   const [requestsList, setRequestsList] = useState(initialRequests);
   const [activeTab, setActiveTab] = useState('Pending');
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
@@ -379,6 +351,36 @@ function RequestTransactionContent() {
   );
 }
 
-export default function RequestTransactionPage() {
-  return <RequestTransactionContent />;
+export default function RequestTransactionPage({
+  initialRequests = [
+    {
+      request: 'FF-q8eqk6qc',
+      investor: 'Faye Cheah',
+      investorId: 'INV-204812',
+      type: 'Deposit',
+      amount: '$10,000.00',
+      date: 'May 27, 2026',
+      status: 'Pending Review',
+    },
+    {
+      request: 'TXN-001',
+      investor: 'Faye Cheah',
+      investorId: 'INV-204812', 
+      type: 'Deposit',
+      amount: '$50,000.00',
+      date: '17 Mar 2026',
+      status: 'Completed',
+    },
+    {
+      request: 'TXN-022',
+      investor: 'Faye Cheah',
+      investorId: 'INV-204812',
+      type: 'Withdrawal',
+      amount: '$10,000.00',
+      date: '15 Apr 2026',
+      status: 'Completed',
+    }
+  ]
+}) {
+  return <RequestTransactionContent initialRequests={initialRequests} />;
 }

@@ -1,39 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
 
-const activities = [
-  { id: 'TXN-001', date: '17 Mar 2026', type: 'Deposit', fund: 'OKC XAUUSD Fund', amount: '+$50,000.00', status: 'Completed', positive: true },
-  { id: 'TXN-002', date: '18 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,120.50', status: 'Completed', positive: true },
-  { id: 'TXN-003', date: '19 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$845.20', status: 'Completed', positive: true },
-  { id: 'TXN-004', date: '20 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$430.10', status: 'Completed', positive: false },
-  { id: 'TXN-005', date: '23 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,450.00', status: 'Completed', positive: true },
-  { id: 'TXN-006', date: '24 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$910.60', status: 'Completed', positive: false },
-  { id: 'TXN-007', date: '25 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$320.40', status: 'Completed', positive: true },
-  { id: 'TXN-008', date: '26 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,150.00', status: 'Completed', positive: false },
-  { id: 'TXN-009', date: '27 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$610.80', status: 'Completed', positive: true },
-  { id: 'TXN-010', date: '30 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,840.50', status: 'Completed', positive: false },
-  { id: 'TXN-011', date: '31 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$2,110.00', status: 'Completed', positive: true },
-  { id: 'TXN-012', date: '01 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$2,450.00', status: 'Completed', positive: false },
-  { id: 'TXN-013', date: '02 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,920.40', status: 'Completed', positive: false },
-  { id: 'TXN-014', date: '03 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$840.10', status: 'Completed', positive: true },
-  { id: 'TXN-015', date: '06 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$3,110.50', status: 'Completed', positive: false },
-  { id: 'TXN-016', date: '07 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,420.20', status: 'Completed', positive: false },
-  { id: 'TXN-017', date: '08 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$950.60', status: 'Completed', positive: true },
-  { id: 'TXN-018', date: '09 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$2,140.80', status: 'Completed', positive: false },
-  { id: 'TXN-019', date: '10 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,180.30', status: 'Completed', positive: true },
-  { id: 'TXN-020', date: '13 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$4,210.60', status: 'Completed', positive: false },
-  { id: 'TXN-021', date: '14 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$2,890.20', status: 'Completed', positive: true },
-  { id: 'TXN-022', date: '15 Apr 2026', type: 'Withdrawal', fund: 'OKC XAUUSD Fund', amount: '-$10,000.00', status: 'Completed', positive: false },
-  { id: 'TXN-023', date: '15 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$350.00', status: 'Completed', positive: false },
-  { id: 'TXN-024', date: '16 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,680.40', status: 'Completed', positive: true },
-  { id: 'TXN-025', date: '17 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,120.70', status: 'Completed', positive: false },
-  { id: 'TXN-026', date: '20 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$540.30', status: 'Completed', positive: true },
-  { id: 'TXN-027', date: '21 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$2,380.00', status: 'Completed', positive: false },
-  { id: 'TXN-028', date: '22 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,420.50', status: 'Completed', positive: true },
-  { id: 'TXN-029', date: '23 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$890.20', status: 'Completed', positive: false },
-  { id: 'TXN-030', date: '24 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1.20', status: 'Completed', positive: false }
-];
-
 const filters = ['All', 'Daily P&L', 'Deposit', 'Withdrawal'];
 
 const statusStyle = {
@@ -46,15 +13,49 @@ const statusStyle = {
 const parseAmount = (str) => parseFloat(str.replace(/[+$–,\s]/g, '').replace('$', '')) || 0;
 const parseDate = (str) => new Date(Date.parse(str)) || new Date(0);
 
-export default function ActivityPage() {
+export default function ActivityPage({
+  // Fallback defaults allow the portal to run seamlessly until the API integration hook is active
+  initialActivities = [
+    { id: 'TXN-001', date: '17 Mar 2026', type: 'Deposit', fund: 'OKC XAUUSD Fund', amount: '+$50,000.00', status: 'Completed', positive: true },
+    { id: 'TXN-002', date: '18 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,120.50', status: 'Completed', positive: true },
+    { id: 'TXN-003', date: '19 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$845.20', status: 'Completed', positive: true },
+    { id: 'TXN-004', date: '20 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$430.10', status: 'Completed', positive: false },
+    { id: 'TXN-005', date: '23 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,450.00', status: 'Completed', positive: true },
+    { id: 'TXN-006', date: '24 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$910.60', status: 'Completed', positive: false },
+    { id: 'TXN-007', date: '25 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$320.40', status: 'Completed', positive: true },
+    { id: 'TXN-008', date: '26 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,150.00', status: 'Completed', positive: false },
+    { id: 'TXN-009', date: '27 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$610.80', status: 'Completed', positive: true },
+    { id: 'TXN-010', date: '30 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,840.50', status: 'Completed', positive: false },
+    { id: 'TXN-011', date: '31 Mar 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$2,110.00', status: 'Completed', positive: true },
+    { id: 'TXN-012', date: '01 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$2,450.00', status: 'Completed', positive: false },
+    { id: 'TXN-013', date: '02 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,920.40', status: 'Completed', positive: false },
+    { id: 'TXN-014', date: '03 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$840.10', status: 'Completed', positive: true },
+    { id: 'TXN-015', date: '06 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$3,110.50', status: 'Completed', positive: false },
+    { id: 'TXN-016', date: '07 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,420.20', status: 'Completed', positive: false },
+    { id: 'TXN-017', date: '08 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$950.60', status: 'Completed', positive: true },
+    { id: 'TXN-018', date: '09 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$2,140.80', status: 'Completed', positive: false },
+    { id: 'TXN-019', date: '10 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,180.30', status: 'Completed', positive: true },
+    { id: 'TXN-020', date: '13 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$4,210.60', status: 'Completed', positive: false },
+    { id: 'TXN-021', date: '14 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$2,890.20', status: 'Completed', positive: true },
+    { id: 'TXN-022', date: '15 Apr 2026', type: 'Withdrawal', fund: 'OKC XAUUSD Fund', amount: '-$10,000.00', status: 'Completed', positive: false },
+    { id: 'TXN-023', date: '15 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$350.00', status: 'Completed', positive: false },
+    { id: 'TXN-024', date: '16 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,680.40', status: 'Completed', positive: true },
+    { id: 'TXN-025', date: '17 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1,120.70', status: 'Completed', positive: false },
+    { id: 'TXN-026', date: '20 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$540.30', status: 'Completed', positive: true },
+    { id: 'TXN-027', date: '21 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$2,380.00', status: 'Completed', positive: false },
+    { id: 'TXN-028', date: '22 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '+$1,420.50', status: 'Completed', positive: true },
+    { id: 'TXN-029', date: '23 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$890.20', status: 'Completed', positive: false },
+    { id: 'TXN-030', date: '24 Apr 2026', type: 'Daily P&L', fund: 'OKC XAUUSD Fund', amount: '-$1.20', status: 'Completed', positive: false }
+  ]
+}) {
   const [activeFilter, setActiveFilter] = useState('All');
   const [sortBy, setSortBy] = useState('date-desc');
 
-  // Unified computation block tracking filters and sort rules cleanly
+  // Unified computation tracking filters, sort patterns, and data injection variables
   const processedActivities = useMemo(() => {
     let result = activeFilter === 'All'
-      ? [...activities]
-      : activities.filter(a => a.type === activeFilter);
+      ? [...initialActivities]
+      : initialActivities.filter(a => a.type === activeFilter);
 
     return result.sort((a, b) => {
       switch (sortBy) {
@@ -74,7 +75,7 @@ export default function ActivityPage() {
           return 0;
       }
     });
-  }, [activeFilter, sortBy]);
+  }, [activeFilter, sortBy, initialActivities]);
 
   return (
     <div>

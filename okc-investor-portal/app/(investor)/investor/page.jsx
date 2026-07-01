@@ -5,58 +5,72 @@ import StatCard from '@/components/dashboard/StatCard';
 import PortfolioChart from '@/components/dashboard/PortfolioChart';
 import HoldingsTable from '@/components/dashboard/HoldingsTable';
 
-// Real data from dataset 5.4
-const stats = [
-  { label: 'TOTAL PORTFOLIO VALUE', value: '$34,061.15', sub: '-$1.20 today', positive: false },
-  { label: 'DAY P&L · 8 APR 2026', value: '-$1.20', sub: '-0.00%', positive: false },
-  { label: 'APRIL 2026 MTD', value: '-$9,381.31', sub: '-21.89% MTD', positive: false },
-  { label: 'SINCE INCEPTION · 17 MAR 2026', value: '-31.88%', sub: '-$15,938.85', positive: false },
-];
-
 const filters = ['1W', '1M', '3M', 'YTD', '1Y', 'All'];
 
-const allocation = [
-  { name: 'XAUUSD Fund', amount: 'SGD 34,061.15', pct: '100%', color: 'bg-blue-600' },
-];
-
-// Full dataset — used for filtering
-const allChartData = [
-  { date: '17 Mar', fullDate: new Date('2026-03-17'), value: 48489.37 },
-  { date: '18 Mar', fullDate: new Date('2026-03-18'), value: 47982.17 },
-  { date: '19 Mar', fullDate: new Date('2026-03-19'), value: 48826.54 },
-  { date: '20 Mar', fullDate: new Date('2026-03-20'), value: 46896.10 },
-  { date: '23 Mar', fullDate: new Date('2026-03-23'), value: 46172.83 },
-  { date: '24 Mar', fullDate: new Date('2026-03-24'), value: 46398.00 },
-  { date: '25 Mar', fullDate: new Date('2026-03-25'), value: 45106.64 },
-  { date: '26 Mar', fullDate: new Date('2026-03-26'), value: 46075.11 },
-  { date: '27 Mar', fullDate: new Date('2026-03-27'), value: 46920.30 },
-  { date: '30 Mar', fullDate: new Date('2026-03-30'), value: 45502.49 },
-  { date: '31 Mar', fullDate: new Date('2026-03-31'), value: 43442.46 },
-  { date: '1 Apr', fullDate: new Date('2026-04-01'), value: 42007.73 },
-  { date: '2 Apr', fullDate: new Date('2026-04-02'), value: 34853.08 },
-  { date: '6 Apr', fullDate: new Date('2026-04-06'), value: 34726.22 },
-  { date: '7 Apr', fullDate: new Date('2026-04-07'), value: 34062.35 },
-  { date: '8 Apr', fullDate: new Date('2026-04-08'), value: 34061.15 },
-];
-
-export default function InvestorDashboard() {
+export default function InvestorDashboard({
+  // Fallbacks let you drop in mock data easily until the database hook is fully typed/active!
+  initialStats = [
+    { label: 'TOTAL PORTFOLIO VALUE', value: '$34,061.15', sub: '-$1.20 today', positive: false },
+    { label: 'DAY P&L · 8 APR 2026', value: '-$1.20', sub: '-0.00%', positive: false },
+    { label: 'APRIL 2026 MTD', value: '-$9,381.31', sub: '-21.89% MTD', positive: false },
+    { label: 'SINCE INCEPTION · 17 MAR 2026', value: '-31.88%', sub: '-$15,938.85', positive: false },
+  ],
+  initialAllocation = [
+    { name: 'XAUUSD Fund', amount: 'SGD 34,061.15', pct: '100%', color: 'bg-blue-600' },
+  ],
+  allChartData = [
+    { date: '17 Mar', fullDate: new Date('2026-03-17'), value: 48489.37 },
+    { date: '18 Mar', fullDate: new Date('2026-03-18'), value: 47982.17 },
+    { date: '19 Mar', fullDate: new Date('2026-03-19'), value: 48826.54 },
+    { date: '20 Mar', fullDate: new Date('2026-03-20'), value: 46896.10 },
+    { date: '23 Mar', fullDate: new Date('2026-03-23'), value: 46172.83 },
+    { date: '24 Mar', fullDate: new Date('2026-03-24'), value: 46398.00 },
+    { date: '25 Mar', fullDate: new Date('2026-03-25'), value: 45106.64 },
+    { date: '26 Mar', fullDate: new Date('2026-03-26'), value: 46075.11 },
+    { date: '27 Mar', fullDate: new Date('2026-03-27'), value: 46920.30 },
+    { date: '30 Mar', fullDate: new Date('2026-03-30'), value: 45502.49 },
+    { date: '31 Mar', fullDate: new Date('2026-03-31'), value: 43442.46 },
+    { date: '1 Apr', fullDate: new Date('2026-04-01'), value: 42007.73 },
+    { date: '2 Apr', fullDate: new Date('2026-04-02'), value: 34853.08 },
+    { date: '6 Apr', fullDate: new Date('2026-04-06'), value: 34726.22 },
+    { date: '7 Apr', fullDate: new Date('2026-04-07'), value: 34062.35 },
+    { date: '8 Apr', fullDate: new Date('2026-04-08'), value: 34061.15 },
+  ],
+  initialHoldings = [
+    {
+      fund: 'OKC XAUUSD Fund',
+      tag: 'Gold (XAU/USD) · Active trading strategy',
+      marketValue: '$34,061.15',
+      dayPnl: '-$1.20',
+      dayPct: '-0.00%',
+      mtd: '-$9,381.31',
+      ytd: '-31.88%',
+      inception: '-$15,938.85',
+      share: '100%',
+      positive: false,
+    },
+  ]
+}) {
   const [activeFilter, setActiveFilter] = useState('All');
-
   const router = useRouter();
-  
-  // Read query filters reactively from search layout bar
   const searchParams = useSearchParams();
   const searchQuery = (searchParams.get('search') || '').toLowerCase().trim();
 
-  // Filter allocation metrics depending on global search input match
+  // Dynamic calculations based on state or incoming API structures
   const filteredAllocation = useMemo(() => {
-    if (!searchQuery) return allocation;
-    return allocation.filter(fund => 
+    if (!searchQuery) return initialAllocation;
+    return initialAllocation.filter(fund => 
       fund.name.toLowerCase().includes(searchQuery)
     );
-  }, [searchQuery]);
+  }, [searchQuery, initialAllocation]);
 
-  // Filter chart data based on selected period
+  const filteredHoldings = useMemo(() => {
+    if (!searchQuery) return initialHoldings;
+    return initialHoldings.filter(h => 
+      h.fund.toLowerCase().includes(searchQuery)
+    );
+  }, [searchQuery, initialHoldings]);
+
   const filteredChartData = useMemo(() => {
     const latest = new Date('2026-04-08');
     const cutoffs = {
@@ -69,7 +83,11 @@ export default function InvestorDashboard() {
     };
     const cutoff = cutoffs[activeFilter];
     return allChartData.filter(d => d.fullDate >= cutoff);
-  }, [activeFilter]);
+  }, [activeFilter, allChartData]);
+
+  // Derive display portfolio totals dynamically
+  const totalDisplayValue = initialStats[0]?.value || 'SGD 0.00';
+  const inceptionPctStr = initialStats[3]?.value || '0.00%';
 
   return (
     <div className="space-y-6">
@@ -87,23 +105,20 @@ export default function InvestorDashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
+        {initialStats.map((stat, i) => (
           <StatCard key={i} {...stat} />
         ))}
       </div>
 
-      {/* Chart + Allocation - Fixed responsive grid breakdown */}
+      {/* Chart + Allocation */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Portfolio Chart Component Box */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-xs text-gray-400 font-medium tracking-wide mb-1">PORTFOLIO VALUE</p>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            {/* Fixed wrapper: Text will scale or drop cleanly as a unified block */}
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-2xl font-bold text-gray-900">SGD 34,061.15</span>
+              <span className="text-2xl font-bold text-gray-900">{totalDisplayValue}</span>
               <span className="text-red-500 font-medium text-sm whitespace-nowrap">
-                -31.88% since inception
+                {inceptionPctStr} since inception
               </span>
             </div>
             
@@ -130,8 +145,6 @@ export default function InvestorDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col h-full">
           <p className="text-xs text-gray-400 font-medium tracking-wide mb-4">ALLOCATION ACROSS FUNDS</p>
           <div className="flex flex-col items-center flex-1 justify-center">
-
-            {/* Donut Chart */}
             <div className="relative w-36 h-36 flex items-center justify-center mb-6">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 42 42">
                 {(() => {
@@ -171,7 +184,6 @@ export default function InvestorDashboard() {
               </div>
             </div>
 
-            {/* Legend layout listings */}
             <div className="w-full flex flex-col gap-3">
               {filteredAllocation.map((fund, i) => (
                 <div key={i} className="flex items-center justify-between w-full">
@@ -189,10 +201,8 @@ export default function InvestorDashboard() {
                 <p className="text-xs text-gray-400 text-center py-2">No matching asset allocations</p>
               )}
             </div>
-
           </div>
         </div>
-
       </div>
 
       {/* Holdings Table Section */}
@@ -214,9 +224,8 @@ export default function InvestorDashboard() {
             </button>
           </div>
         </div>
-        <HoldingsTable searchFilter={searchQuery} />
+        <HoldingsTable data={filteredHoldings} />
       </div>
-
     </div>
   );
 }

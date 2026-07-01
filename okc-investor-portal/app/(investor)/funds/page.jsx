@@ -1,32 +1,33 @@
 'use client';
 import { useState } from 'react';
 
-const funds = [
-  {
-    code: 'XAU',
-    name: 'OKC XAUUSD Fund',
-    tag: 'Gold (XAU/USD) · Active trading strategy',
-    value: '$34,061.15',
-    dayPnl: '-$1.20',
-    dayPct: '-0.00%',
-    mtd: '-$9,381.31',
-    ytd: '-31.88%',
-    inception: '-$15,938.85',
-    inceptionPct: '-31.88%',
-    share: '100%',
-    risk: 'High',
-    color: 'bg-blue-600',
-    positive: false,
-  },
-];
-
 const riskStyle = {
   High: 'bg-red-50 text-red-500',
   Medium: 'bg-yellow-50 text-yellow-600',
   Low: 'bg-green-50 text-green-600',
 };
 
-export default function FundsPage() {
+export default function FundsPage({
+  // fallback defaults allow the portal to run seamlessly until the API integration hook is active
+  initialFunds = [
+    {
+      code: 'XAU',
+      name: 'OKC XAUUSD Fund',
+      tag: 'Gold (XAU/USD) · Active trading strategy',
+      value: '$34,061.15',
+      dayPnl: '-$1.20',
+      dayPct: '-0.00%',
+      mtd: '-$9,381.31',
+      ytd: '-31.88%',
+      inception: '-$15,938.85',
+      inceptionPct: '-31.88%',
+      share: '100%',
+      risk: 'High',
+      color: 'bg-blue-600',
+      positive: false,
+    },
+  ],
+}) {
   const [selected, setSelected] = useState(null);
 
   return (
@@ -41,7 +42,7 @@ export default function FundsPage() {
 
       {/* Fund Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6 max-w-7xl">
-        {funds.map((fund, i) => (
+        {initialFunds.map((fund, i) => (
           <div
             key={i}
             onClick={() => setSelected(selected === i ? null : i)}
@@ -108,15 +109,15 @@ export default function FundsPage() {
       </div>
 
       {/* Expanded detail panel */}
-      {selected !== null && (
+      {selected !== null && initialFunds[selected] && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-bold text-gray-900">
-                {funds[selected].name}
+                {initialFunds[selected].name}
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                {funds[selected].tag}
+                {initialFunds[selected].tag}
               </p>
             </div>
             <button
@@ -132,26 +133,26 @@ export default function FundsPage() {
             {[
               { 
                 label: 'Market Value', 
-                value: funds[selected].value, 
+                value: initialFunds[selected].value, 
                 isDayPnl: false, 
                 red: false 
               },
               {
                 label: 'Day P&L',
-                value: funds[selected].dayPnl,
-                pct: funds[selected].dayPct,
+                value: initialFunds[selected].dayPnl,
+                pct: initialFunds[selected].dayPct,
                 isDayPnl: true,
-                red: !funds[selected].positive,
+                red: !initialFunds[selected].positive,
               },
               { 
                 label: 'April MTD', 
-                value: funds[selected].mtd, 
+                value: initialFunds[selected].mtd, 
                 isDayPnl: false, 
                 red: true 
               },
               { 
                 label: 'Since Inception', 
-                value: funds[selected].inceptionPct, 
+                value: initialFunds[selected].inceptionPct, 
                 isDayPnl: false, 
                 red: true 
               },
