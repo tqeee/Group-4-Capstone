@@ -1,22 +1,6 @@
-// Real data from dataset 5.4
-const holdings = [
-  {
-    fund: 'OKC XAUUSD Fund',
-    tag: 'Gold (XAU/USD) · Active trading strategy',
-    marketValue: '$34,061.15',
-    dayPnl: '-$1.20',
-    dayPct: '-0.00%',
-    mtd: '-$9,381.31',
-    ytd: '-31.88%',
-    inception: '-$15,938.85',
-    share: '100%',
-    positive: false,
-  },
-];
-
 const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'APR MTD', 'SINCE INCEPTION', 'TOTAL P&L', 'SHARE'];
 
-export default function HoldingsTable() {
+export default function HoldingsTable({ data = [] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -30,7 +14,7 @@ export default function HoldingsTable() {
           </tr>
         </thead>
         <tbody>
-          {holdings.map((h, i) => (
+          {data.map((h, i) => (
             <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition">
               <td className="py-4 pr-6">
                 <p className="text-sm font-semibold text-gray-900">{h.fund}</p>
@@ -56,7 +40,7 @@ export default function HoldingsTable() {
             </tr>
           ))}
         </tbody>
-        </table>
+      </table>
 
       {/* Footer info */}
       <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-6 text-xs text-gray-400">
