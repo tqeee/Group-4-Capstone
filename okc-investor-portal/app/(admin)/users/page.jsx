@@ -1,49 +1,7 @@
 'use client';
 import { useState } from 'react';
 
-const initialUsers = [
-  {
-    id: 'INV-204812',
-    name: 'Faye Cheah',
-    email: 'faye.cheah@email.com',
-    role: 'Investor',
-    status: 'Active',
-    joined: '17 Mar 2026',
-    portfolioValue: '$34,061.15',
-    mfa: true,
-  },
-  {
-    id: 'INV-204813',
-    name: 'Sarah Lim',
-    email: 'sarah.lim@email.com',
-    role: 'Investor',
-    status: 'Pending',
-    joined: '5 Apr 2026',
-    portfolioValue: '$0.00',
-    mfa: false,
-  },
-  {
-    id: 'INV-204814',
-    name: 'James Wong',
-    email: 'james.wong@email.com',
-    role: 'Investor',
-    status: 'Invited',
-    joined: '7 Apr 2026',
-    portfolioValue: '$0.00',
-    mfa: false,
-  },
-  {
-    id: 'OPS-001',
-    name: 'Operations Staff',
-    email: 'ops@okccapital.sg',
-    role: 'Operations',
-    status: 'Active',
-    joined: '1 Jan 2026',
-    portfolioValue: '—',
-    mfa: true,
-  },
-];
-
+// Color map styling objects remain outside
 const statusStyle = {
   Active: 'bg-green-50 text-green-600',
   Pending: 'bg-yellow-50 text-yellow-600',
@@ -57,7 +15,52 @@ const roleStyle = {
   Admin: 'bg-blue-50 text-blue-600', 
 };
 
-export default function UsersPage() {
+export default function UsersPage({
+  // Static mock dataset lifted into component parameters with fallback structures
+  initialUsers = [
+    {
+      id: 'INV-204812',
+      name: 'Faye Cheah',
+      email: 'faye.cheah@email.com',
+      role: 'Investor',
+      status: 'Active',
+      joined: '17 Mar 2026',
+      portfolioValue: '$34,061.15',
+      mfa: true,
+    },
+    {
+      id: 'INV-204813',
+      name: 'Sarah Lim',
+      email: 'sarah.lim@email.com',
+      role: 'Investor',
+      status: 'Pending',
+      joined: '5 Apr 2026',
+      portfolioValue: '$0.00',
+      mfa: false,
+    },
+    {
+      id: 'INV-204814',
+      name: 'James Wong',
+      email: 'james.wong@email.com',
+      role: 'Investor',
+      status: 'Invited',
+      joined: '7 Apr 2026',
+      portfolioValue: '$0.00',
+      mfa: false,
+    },
+    {
+      id: 'OPS-001',
+      name: 'Operations Staff',
+      email: 'ops@okccapital.sg',
+      role: 'Operations',
+      status: 'Active',
+      joined: '1 Jan 2026',
+      portfolioValue: '—',
+      mfa: true,
+    },
+  ]
+}) {
+
   const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -65,6 +68,7 @@ export default function UsersPage() {
   const [inviteRole, setInviteRole] = useState('Investor');
   const [toast, setToast] = useState(null);
 
+  // Search filter
   const filtered = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -94,7 +98,7 @@ export default function UsersPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Header — Wraps gracefully on mobile views */}
+      {/* Header Framework */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Users</h1>
@@ -113,7 +117,7 @@ export default function UsersPage() {
         </button>
       </div>
 
-      {/* Stats row — Dynamic switching layouts based on screen size */}
+      {/* Dynamic Summary Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'TOTAL USERS', value: users.length },
@@ -128,7 +132,7 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {/* Search + table */}
+      {/* Filter and Table Card Frame */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
           <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,7 +146,7 @@ export default function UsersPage() {
           />
         </div>
 
-        {/* Horizontal scroll support for small layouts */}
+        {/* Scalable Matrix Viewport */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px]">
             <thead>
@@ -213,10 +217,10 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* Invite Modal — Fully responsive responsive overlay wrapper */}
+      {/* User Invitation Layout*/}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 w-full max-w-md shadow-xl transform transition-all">
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-gray-900">Invite new user</h2>
               <button
@@ -235,7 +239,7 @@ export default function UsersPage() {
                   value={inviteEmail}
                   onChange={e => setInviteEmail(e.target.value)}
                   placeholder="investor@email.com"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50/30"
                 />
               </div>
               <div>
@@ -243,7 +247,7 @@ export default function UsersPage() {
                 <select
                   value={inviteRole}
                   onChange={e => setInviteRole(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
                   <option>Investor</option>
                   <option>Operations</option>
@@ -257,13 +261,13 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={() => setShowInviteModal(false)}
-                  className="w-full sm:flex-1 border border-gray-200 text-gray-600 text-sm py-2.5 rounded-lg hover:bg-gray-50 transition"
+                  className="w-full sm:flex-1 border border-gray-200 text-gray-600 text-sm py-2.5 rounded-lg hover:bg-gray-50 transition font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-full sm:flex-1 bg-blue-600 text-white text-sm py-2.5 rounded-lg hover:bg-blue-700 transition"
+                  className="w-full sm:flex-1 bg-blue-600 text-white text-sm py-2.5 rounded-lg hover:bg-blue-700 transition font-medium shadow-sm shadow-blue-500/10"
                 >
                   Send invite
                 </button>
@@ -273,7 +277,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Toast alert handling code */}
+      {/* Action Notification System Frame */}
       {toast && (
         <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-gray-900 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0">
           <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

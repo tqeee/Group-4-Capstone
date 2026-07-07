@@ -1,9 +1,15 @@
 'use client';
-
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export default function DashboardLayout({ children }) {
+export default function DashboardLayout({ 
+  children,
+  initialUser = {
+    name: 'Faye Cheah',
+    id: 'INV-204812',
+    initials: 'FC'
+  }
+}) {
   const pathname = usePathname();
 
   const navItems = [
@@ -28,9 +34,12 @@ export default function DashboardLayout({ children }) {
               F
             </div>
             <span className="font-semibold text-gray-900 hidden sm:inline">OKC Capital</span>
+            <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 font-medium px-2 py-0.5 rounded-full ml-1 whitespace-nowrap">
+              Investor
+            </span>
           </div>
           
-          {/* Menu Items Frame — Fixed width properties to prevent clipping */}
+          {/* Menu Items Frame */}
           <div className="flex gap-6 overflow-x-auto py-1 scrollbar-none min-w-0 w-full">
             {navItems.map(item => (
               <Link
@@ -64,11 +73,11 @@ export default function DashboardLayout({ children }) {
           {/* Profile Details Frame */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="w-9 h-9 bg-gray-900 rounded-full flex items-center justify-center text-white text-xs font-bold">
-              FC
+              {initialUser.initials}
             </div>
             <div className="hidden lg:block text-left">
-              <p className="text-sm font-medium text-gray-900 leading-none">Faye Cheah</p>
-              <p className="text-xs text-gray-400 mt-0.5">INV-204812</p>
+              <p className="text-sm font-medium text-gray-900 leading-none">{initialUser.name}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{initialUser.id}</p>
             </div>
           </div>
         </div>

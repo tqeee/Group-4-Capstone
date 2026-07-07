@@ -8,29 +8,38 @@ const parseAmount = (str) => {
   return parseFloat(str.replace(/[+$,\s]/g, '')) || 0;
 };
 
-function RequestTypeCard({ isSelected, label, description, onClick, children }) {
+// Type Card featuring conditional color themes
+function RequestTypeCard({ isSelected, type, label, description, onClick, children }) {
+  const activeStyles = type === 'deposit'
+    ? 'border-emerald-600 bg-emerald-50/70 shadow-sm shadow-emerald-100 text-emerald-700'
+    : 'border-amber-500 bg-amber-50/70 shadow-sm shadow-amber-100 text-amber-700';
+
+  const activeIconStyles = type === 'deposit' ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white';
+
   return (
     <button
       type="button"
       onClick={onClick}
       className={`flex flex-1 items-center gap-3 rounded-2xl border p-4 text-left transition ${
         isSelected
-          ? 'border-blue-600 bg-blue-50 shadow-sm shadow-blue-100'
-          : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50/40'
+          ? activeStyles
+          : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50/30'
       }`}
     >
       <span
-        className={`flex h-10 w-10 items-center justify-center rounded-full ${
-          isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
+        className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+          isSelected ? activeIconStyles : 'bg-gray-100 text-gray-400'
         }`}
       >
         {children}
       </span>
       <span>
-        <span className={`block font-semibold ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
+        <span className={`block font-semibold ${isSelected ? '' : 'text-gray-900'}`}>
           {label}
         </span>
-        <span className="mt-1 block text-xs text-gray-400">{description}</span>
+        <span className={`mt-0.5 block text-xs ${isSelected ? 'text-gray-500' : 'text-gray-400'}`}>
+          {description}
+        </span>
       </span>
     </button>
   );
@@ -39,13 +48,29 @@ function RequestTypeCard({ isSelected, label, description, onClick, children }) 
 function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClose, onSubmit }) {
   const submitLabel = requestType === 'deposit' ? 'Submit Deposit' : 'Submit Withdrawal';
 
+  // Smart masking: Automatically pads standard decimal places
+  const handleAmountBlur = () => {
+    if (!amount) return;
+    const parsed = parseFloat(amount);
+    if (!isNaN(parsed) && parsed > 0) {
+      setAmount(parsed.toFixed(2));
+    }
+  };
+
+  // Determine submit button accent colors dynamically
+  const submitBtnColors = requestType === 'deposit'
+    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/10 focus:ring-emerald-500/20'
+    : 'bg-amber-700 hover:bg-amber-800 shadow-amber-500/10 focus:ring-amber-500/20';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 backdrop-blur-sm">
       <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-blue-950/20">
+        
+        {/* Header Block */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-blue-600">New Request</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900">New Fund Flow Request</h2>
+            <h2 className="text-xl font-bold tracking-tight text-gray-900">New Fund Flow Request</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Specify transaction details for operational review.</p>
           </div>
           <button
             type="button"
@@ -60,32 +85,36 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
         </div>
 
         <div className="space-y-6 px-6 py-6">
+          {/* Dual-Color Action Toggles */}
           <div>
             <p className="mb-3 text-sm font-semibold text-gray-600">Request Type</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <RequestTypeCard
                 isSelected={requestType === 'deposit'}
+                type="deposit"
                 label="Deposit"
-                description="Add funds"
+                description="Add funds to profile"
                 onClick={() => setRequestType('deposit')}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19V5m0 0-5 5m5-5 5 5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m0 0-5 5m5-5 5 5" />
                 </svg>
               </RequestTypeCard>
               <RequestTypeCard
                 isSelected={requestType === 'withdrawal'}
+                type="withdrawal"
                 label="Withdrawal"
-                description="Withdraw funds"
+                description="Withdraw funds to bank"
                 onClick={() => setRequestType('withdrawal')}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 5v14m0 0-5-5m5 5 5-5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m0 0-5-5m5 5 5-5" />
                 </svg>
               </RequestTypeCard>
             </div>
           </div>
 
+          {/* Clean Smart Banking Input Container */}
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-gray-600">Amount (SGD)</span>
             <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 transition focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
@@ -96,6 +125,7 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
                 step="0.01"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
+                onBlur={handleAmountBlur}
                 placeholder="0.00"
                 className="w-full bg-transparent text-lg font-semibold text-gray-900 outline-none placeholder:text-gray-400"
               />
@@ -110,19 +140,20 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
           </div>
         </div>
 
+        {/* Form Action Tray */}
         <div className="grid grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50 px-6 py-5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl bg-white px-4 py-3 font-semibold text-gray-600 ring-1 ring-gray-200 transition hover:bg-gray-100"
+            className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 transition hover:bg-gray-100 shadow-sm"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-2xl bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-300"
-            disabled={!amount}
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none ${submitBtnColors}`}
+            disabled={!amount || parseFloat(amount) <= 0}
           >
             {submitLabel}
           </button>
@@ -202,17 +233,17 @@ function RequestTransactionContent({ initialRequests }) {
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Request Transaction</h1>
-            <p className="text-gray-500 mt-2">Review your deposit and withdrawal requests.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Request Transaction</h1>
+            <p className="text-gray-500 mt-1">Review your deposit and withdrawal requests.</p>
           </div>
           <div>
             <button
               type="button"
               onClick={() => setIsNewRequestOpen(true)}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-blue-500/10 transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 5v14m7-7H5" />
+              <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m7-7H5" />
               </svg>
               New Request
             </button>
@@ -265,7 +296,7 @@ function RequestTransactionContent({ initialRequests }) {
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
               activeTab === tab.id
-                ? 'bg-blue-700 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >

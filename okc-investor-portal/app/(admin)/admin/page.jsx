@@ -1,27 +1,6 @@
 'use client';
 import { useState } from 'react';
 
-const stats = [
-  { label: 'TOTAL INVESTORS', value: '3', sub: '2 active · 1 pending', red: false },
-  { label: 'TOTAL AUM', value: 'SGD 34,061.15', sub: 'Across all accounts', red: false },
-  { label: 'TOTAL P&L (ALL)', value: '-SGD 15,938.85', sub: '-31.88% since inception', red: true },
-  { label: 'PENDING REQUESTS', value: '2', sub: '1 deposit · 1 withdrawal', red: false },
-];
-
-const recentActivity = [
-  { user: 'Faye Cheah', action: 'Login successful', time: '8 Apr 2026 · 09:14', role: 'Investor', success: true },
-  { user: 'Sarah Lim', action: 'Login failed — wrong password', time: '8 Apr 2026 · 08:52', role: 'Investor', success: false },
-  { user: 'Admin', action: 'Invited new investor: david.koh@email.com', time: '7 Apr 2026 · 17:30', role: 'Admin', success: true },
-  { user: 'Faye Cheah', action: 'Submitted withdrawal request SGD 20,000', time: '7 Apr 2026 · 14:22', role: 'Investor', success: true },
-  { user: 'James Wong', action: 'Password reset completed', time: '6 Apr 2026 · 11:05', role: 'Investor', success: true },
-];
-
-const investors = [
-  { name: 'Faye Cheah', id: 'INV-204812', value: '$34,061.15', pnl: '-31.88%', status: 'Active', positive: false },
-  { name: 'Sarah Lim', id: 'INV-204813', value: '$0.00', pnl: '—', status: 'Pending', positive: false },
-  { name: 'James Wong', id: 'INV-204814', value: '$0.00', pnl: '—', status: 'Invited', positive: false },
-];
-
 const statusStyle = {
   Active: 'bg-green-50 text-green-600',
   Pending: 'bg-yellow-50 text-yellow-600',
@@ -29,7 +8,32 @@ const statusStyle = {
   Suspended: 'bg-red-50 text-red-500',
 };
 
-export default function AdminOverview() {
+export default function AdminOverview({
+  // Decoupled data models extracted to page-level props with fallbacks
+  initialStats = [
+    { label: 'TOTAL INVESTORS', value: '3', sub: '2 active · 1 pending', red: false },
+    { label: 'TOTAL AUM', value: 'SGD 34,061.15', sub: 'Across all accounts', red: false },
+    { label: 'TOTAL P&L (ALL)', value: '-SGD 15,938.85', sub: '-31.88% since inception', red: true },
+    { label: 'PENDING REQUESTS', value: '2', sub: '1 deposit · 1 withdrawal', red: false },
+  ],
+  initialRecentActivity = [
+    { user: 'Faye Cheah', action: 'Login successful', time: '8 Apr 2026 · 09:14', role: 'Investor', success: true },
+    { user: 'Sarah Lim', action: 'Login failed — wrong password', time: '8 Apr 2026 · 08:52', role: 'Investor', success: false },
+    { user: 'Admin', action: 'Invited new investor: david.koh@email.com', time: '7 Apr 2026 · 17:30', role: 'Admin', success: true },
+    { user: 'Faye Cheah', action: 'Submitted withdrawal request SGD 20,000', time: '7 Apr 2026 · 14:22', role: 'Investor', success: true },
+    { user: 'James Wong', action: 'Password reset completed', time: '6 Apr 2026 · 11:05', role: 'Investor', success: true },
+  ],
+  initialInvestors = [
+    { name: 'Faye Cheah', id: 'INV-204812', value: '$34,061.15', pnl: '-31.88%', status: 'Active', positive: false },
+    { name: 'Sarah Lim', id: 'INV-204813', value: '$0.00', pnl: '—', status: 'Pending', positive: false },
+    { name: 'James Wong', id: 'INV-204814', value: '$0.00', pnl: '—', status: 'Invited', positive: false },
+  ]
+}) {
+
+  const [stats] = useState(initialStats);
+  const [recentActivity] = useState(initialRecentActivity);
+  const [investors] = useState(initialInvestors);
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       {/* Header */}
@@ -57,10 +61,10 @@ export default function AdminOverview() {
         ))}
       </div>
 
-      {/* Grid splits down to vertical stack on tablets or below */}
+      {/* Main Grid Wrapper */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Investor summary */}
+        {/* Investor Summary Section */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6 min-w-0">
           <div className="flex items-end justify-between mb-4 gap-2">
             <div>
@@ -72,7 +76,7 @@ export default function AdminOverview() {
             </a>
           </div>
           
-          {/* Responsive table overflow protection */}
+          {/* Responsive Table Control */}
           <div className="overflow-x-auto -mx-6 px-6">
             <table className="w-full min-w-[600px]">
               <thead>
@@ -110,7 +114,7 @@ export default function AdminOverview() {
           </div>
         </div>
 
-        {/* Recent activity */}
+        {/* Recent Activity Section */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-end justify-between mb-4 gap-2">
             <div>

@@ -1,29 +1,30 @@
 'use client';
 import { useState } from 'react';
 
-export default function SettingsPage() {
-  const [toast, setToast] = useState(null);
-
-  const [general, setGeneral] = useState({
+export default function SettingsPage({
+  initialGeneral = {
     portalName: 'OKC Capital Investor Portal',
     contactEmail: 'im@okccapital.sg',
     navUpdateTime: '19:00',
     timezone: 'Asia/Singapore',
-  });
-
-  const [security, setSecurity] = useState({
+  },
+  initialSecurity = {
     sessionTimeout: '10',
     maxLoginAttempts: '5',
     mfaRequired: true,
     inviteExpiry: '24',
-  });
-
-  const [transactions, setTransactions] = useState({
+  },
+  initialTransactions = {
     minDeposit: '100000',
     minWithdrawal: '20000',
     managementFee: '1',
     largeTransactionThreshold: '500000',
-  });
+  }
+}) {
+  const [toast, setToast] = useState(null);
+  const [general, setGeneral] = useState(initialGeneral);
+  const [security, setSecurity] = useState(initialSecurity);
+  const [transactions, setTransactions] = useState(initialTransactions);
 
   function handleSave(section) {
     setToast(`${section} settings saved successfully.`);
@@ -32,7 +33,7 @@ export default function SettingsPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Header */}
+      {/* Header Framework */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-400 text-sm mt-1">
@@ -41,11 +42,11 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6">
-
-        {/* General Settings */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        {/* General Settings Card Frame */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8">
           <h2 className="text-lg font-bold text-gray-900 mb-1">General</h2>
-          <p className="text-xs text-gray-400 mb-6">Basic portal configuration.</p>
+          <p className="text-xs text-gray-400 mb-6">Basic portal infrastructure and regional localization parameters.</p>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
               { label: 'Portal name', key: 'portalName', type: 'text' },
@@ -54,68 +55,64 @@ export default function SettingsPage() {
               { label: 'Timezone', key: 'timezone', type: 'text' },
             ].map(field => (
               <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{field.label}</label>
                 <input
                   type={field.type}
                   value={general[field.key]}
                   onChange={e => setGeneral(prev => ({ ...prev, [field.key]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-800"
                 />
               </div>
             ))}
           </div>
+          
           <button
             onClick={() => handleSave('General')}
-            className="mt-6 bg-blue-600 text-white text-sm px-5 py-2.5 rounded-lg hover:bg-blue-700 transition w-full sm:w-auto"
+            className="mt-6 bg-blue-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-blue-700 transition w-full sm:w-auto shadow-sm shadow-blue-500/10"
           >
             Save general settings
           </button>
         </div>
 
-        {/* Security Settings */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        {/* Security Settings Card Frame */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8">
           <h2 className="text-lg font-bold text-gray-900 mb-1">Security</h2>
-          <p className="text-xs text-gray-400 mb-6">Authentication and access control rules.</p>
+          <p className="text-xs text-gray-400 mb-6">Authentication profiles and global security rules.</p>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Session timeout (minutes)
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Session timeout (minutes)</label>
               <input
                 type="number"
                 value={security.sessionTimeout}
                 onChange={e => setSecurity(prev => ({ ...prev, sessionTimeout: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-800"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max login attempts before lockout
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Max login attempts before lockout</label>
               <input
                 type="number"
                 value={security.maxLoginAttempts}
                 onChange={e => setSecurity(prev => ({ ...prev, maxLoginAttempts: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-800"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invite link expiry (hours)
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Invite link expiry (hours)</label>
               <input
                 type="number"
                 value={security.inviteExpiry}
                 onChange={e => setSecurity(prev => ({ ...prev, inviteExpiry: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-800"
               />
             </div>
             
-            {/* Optimized MFA Panel Block */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-gray-200 rounded-lg p-4 bg-gray-50/30">
+            {/* MFA Status Panel Frame — Fixed Height Constraint Removed for Zoom Elasticity */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-gray-200 rounded-xl p-4 bg-gray-50/30 self-end w-full min-h-[46px]">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-700">Require MFA for all users</p>
-                <p className="text-xs text-gray-400 mt-0.5 leading-normal">Users must complete MFA setup on first login</p>
+                <p className="text-xs text-gray-400 leading-normal mt-0.5">Enforce setup configurations on initial authentication.</p>
               </div>
               <button
                 type="button"
@@ -132,20 +129,20 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
+          
           <button
             onClick={() => handleSave('Security')}
-            className="mt-6 bg-blue-600 text-white text-sm px-5 py-2.5 rounded-lg hover:bg-blue-700 transition w-full sm:w-auto"
+            className="mt-6 bg-blue-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-blue-700 transition w-full sm:w-auto shadow-sm shadow-blue-500/10"
           >
             Save security settings
           </button>
         </div>
 
-        {/* Transaction Settings */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        {/* Transaction Settings Card Frame */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8">
           <h2 className="text-lg font-bold text-gray-900 mb-1">Transactions</h2>
-          <p className="text-xs text-gray-400 mb-6">
-            Deposit, withdrawal, and fee configuration.
-          </p>
+          <p className="text-xs text-gray-400 mb-6">Deposit compliance targets, minimum thresholds, and management fee matrix.</p>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
               { label: 'Minimum deposit (SGD)', key: 'minDeposit' },
@@ -154,34 +151,40 @@ export default function SettingsPage() {
               { label: 'Large transaction threshold (SGD)', key: 'largeTransactionThreshold' },
             ].map(field => (
               <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{field.label}</label>
                 <input
                   type="number"
                   value={transactions[field.key]}
                   onChange={e => setTransactions(prev => ({ ...prev, [field.key]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-gray-800"
                 />
               </div>
             ))}
           </div>
-          <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-            <p className="text-xs text-yellow-700 leading-normal">
-              <span className="font-semibold">Note:</span> Transactions above the large transaction threshold require Admin approval. All others can be approved by Operations staff.
+          
+          <div className="mt-6 p-4 bg-amber-50/60 rounded-xl border border-amber-100/70">
+            <p className="text-xs text-amber-700 leading-normal flex items-start gap-2">
+              <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0114 0z" />
+              </svg>
+              <span>
+                <span className="font-semibold">Compliance Note:</span> Capital volumes processing above the configured large transaction threshold require secondary Master Admin authorization. Standard requests below this line bypass strict holds for automated execution by operations staff.
+              </span>
             </p>
           </div>
+          
           <button
             onClick={() => handleSave('Transaction')}
-            className="mt-6 bg-blue-600 text-white text-sm px-5 py-2.5 rounded-lg hover:bg-blue-700 transition w-full sm:w-auto"
+            className="mt-6 bg-blue-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-blue-700 transition w-full sm:w-auto shadow-sm shadow-blue-500/10"
           >
             Save transaction settings
           </button>
         </div>
-
       </div>
 
-      {/* Toast */}
+      {/* Action Notification Toast Frame */}
       {toast && (
-        <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-gray-900 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 max-w-sm mx-auto sm:mx-0">
+        <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-gray-900 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0 animate-fade-in">
           <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
