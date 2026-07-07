@@ -183,7 +183,7 @@ export default function FundsClient({ funds }) {
                     minLength={3}
                     maxLength={80}
                     placeholder="OKC Gold Momentum Fund"
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -194,7 +194,7 @@ export default function FundsClient({ funds }) {
                   <select
                     name="currency"
                     defaultValue="SGD"
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {FUND_CURRENCIES.map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -206,7 +206,7 @@ export default function FundsClient({ funds }) {
                   <select
                     name="riskLevel"
                     defaultValue="High"
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {FUND_RISK_LEVELS.map(r => (
                       <option key={r} value={r}>{r}</option>
@@ -220,7 +220,7 @@ export default function FundsClient({ funds }) {
                     name="inceptionDate"
                     required
                     defaultValue={new Date().toISOString().slice(0, 10)}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -234,7 +234,7 @@ export default function FundsClient({ funds }) {
                   name="strategy"
                   maxLength={120}
                   placeholder="Systematic gold futures momentum"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -247,7 +247,7 @@ export default function FundsClient({ funds }) {
                   maxLength={500}
                   rows={3}
                   placeholder="Shown to investors alongside the fund."
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 

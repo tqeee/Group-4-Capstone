@@ -3,7 +3,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { updateSettings } from './actions';
 
 const inputClass =
-  'w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
+  'w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white';
 
 export default function SettingsClient({ settings }) {
   const [state, formAction, isPending] = useActionState(updateSettings, undefined);

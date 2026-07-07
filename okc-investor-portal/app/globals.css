@@ -12,12 +12,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * The portal is deliberately light-themed (every surface uses explicit
+ * bg-white/gray utilities). The create-next-app dark-mode override was
+ * removed: it flipped the inherited text colour to #ededed for dark-mode
+ * users, which made unstyled form inputs render grey-on-white.
+ */
 
 body {
   background: var(--background);

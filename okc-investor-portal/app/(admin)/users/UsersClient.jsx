@@ -221,7 +221,7 @@ export default function UsersClient({ users, loadError }) {
                   required
                   minLength={2}
                   placeholder="Jane Tan"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -231,7 +231,7 @@ export default function UsersClient({ users, loadError }) {
                   name="email"
                   required
                   placeholder="investor@email.com"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -239,7 +239,7 @@ export default function UsersClient({ users, loadError }) {
                 <select
                   name="role"
                   defaultValue="investor"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="investor">Investor</option>
                   <option value="operations">Operations</option>
