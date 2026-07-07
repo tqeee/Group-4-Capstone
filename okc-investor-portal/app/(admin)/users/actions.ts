@@ -49,7 +49,7 @@ export async function inviteUser(
   }
 
   if (typeof name !== 'string' || name.trim().length < 2) {
-    return { status: 'error', message: 'Please enter the user’s full name.' }
+    return { status: 'error', message: 'Please enter the user\'s full name.' }
   }
 
   if (typeof roleInput !== 'string' || !ROLES.includes(roleInput as Role)) {
