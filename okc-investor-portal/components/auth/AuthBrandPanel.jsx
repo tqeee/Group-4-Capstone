@@ -1,4 +1,4 @@
-import buildingImage from '@/images/building.jpg';
+import buildingImage from '@/public/images/building.jpg';
 
 export default function AuthBrandPanel() {
   return (

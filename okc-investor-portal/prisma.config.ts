@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // The CLI (migrate/db push) must use the session-mode pooler; the
+    // transaction-mode pooler in DATABASE_URL is for the app at runtime.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

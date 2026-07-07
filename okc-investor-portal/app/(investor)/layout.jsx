@@ -1,10 +1,26 @@
-import { createClient } from '@/lib/supabase/server';
-import DashboardNav from './DashboardNav';
+import { requireRoleForPage } from '@/lib/auth/guards';
+import DashboardNav from '@/components/dashboard/DashboardNav';
+
+const navItems = [
+  { label: 'Dashboard', href: '/investor' },
+  { label: 'Funds', href: '/funds' },
+  { label: 'Activity', href: '/activity' },
+  { label: 'Reports', href: '/reports' },
+  { label: 'Documents', href: '/documents' },
+];
 
 export default async function DashboardLayout({ children }) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const email = data?.claims?.email ?? null;
+  const { email } = await requireRoleForPage('investor');
 
-  return <DashboardNav email={email}>{children}</DashboardNav>;
+  return (
+    <DashboardNav
+      email={email}
+      roleLabel="Investor"
+      navItems={navItems}
+      searchPath="/investor"
+      searchPlaceholder="Search funds..."
+    >
+      {children}
+    </DashboardNav>
+  );
 }

@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { normalizeRole } from '@/lib/auth/roles'
 
 export type CreateUserState =
   | { status: 'success'; message: string }
@@ -33,17 +34,20 @@ export async function createDebugUser(
     return { status: 'error', message: err instanceof Error ? err.message : 'Failed to create admin client.' }
   }
 
+  const role = normalizeRole(formData.get('role'))
+
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    app_metadata: { role },
   })
 
   if (error) {
     return { status: 'error', message: error.message }
   }
 
-  return { status: 'success', message: `Created user ${data.user?.email} (${data.user?.id})` }
+  return { status: 'success', message: `Created ${role} user ${data.user?.email} (${data.user?.id})` }
 }
 
 export type DeleteAllUsersState =
