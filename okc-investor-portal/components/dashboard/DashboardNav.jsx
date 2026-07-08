@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signout } from '@/app/(auth)/login/actions';
 
-// Shared shell for the investor, operations and admin sections: a fixed
-// sidebar on desktop, a compact header + scrollable nav strip on mobile.
-// Each server layout passes its own nav items and identity read from
-// verified auth claims.
+// Shared shell for the investor, operations and admin sections: a sticky
+// top bar — brand/search/profile row with tab links below on desktop, a
+// scrollable pill strip on mobile. Each server layout passes its own nav
+// items and identity read from verified auth claims.
 
 const LABEL_ICONS = {
   Dashboard: 'M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-6 0h6',
@@ -201,84 +201,73 @@ export default function DashboardNav({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ── Desktop sidebar ─────────────────────────────────────────── */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-gray-200 bg-white lg:flex">
-        <div className="border-b border-gray-100 px-5 py-5">
-          <Brand brandLetter={brandLetter} badge={badge} />
-        </div>
-
-        {searchPath && (
-          <div className="px-4 pt-4">
-            <SearchForm searchPath={searchPath} placeholder={searchPlaceholder} />
+      <header className="sticky top-0 z-30 border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-8">
+          {/* ── Brand / search / profile row ────────────────────────── */}
+          <div className="flex items-center justify-between gap-4 py-3">
+            <Brand brandLetter={brandLetter} badge={badge} />
+            <div className="flex items-center gap-3">
+              {searchPath && (
+                <SearchForm
+                  searchPath={searchPath}
+                  placeholder={searchPlaceholder}
+                  className="hidden w-64 md:flex"
+                />
+              )}
+              <ProfileMenu email={email} roleLabel={roleLabel} compact direction="down" />
+            </div>
           </div>
-        )}
 
-        <nav className="flex-1 overflow-y-auto px-4 py-4">
-          <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-            Navigation
-          </p>
-          <ul className="space-y-1">
+          {/* ── Mobile search + pill nav ────────────────────────────── */}
+          {searchPath && (
+            <div className="pb-3 md:hidden">
+              <SearchForm searchPath={searchPath} placeholder={searchPlaceholder} />
+            </div>
+          )}
+          <nav className="flex gap-1 overflow-x-auto pb-3 lg:hidden">
             {navItems.map(item => (
-              <li key={item.label}>
-                <Link
-                  href={item.href}
-                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
-                    isActive(item.href)
-                      ? 'bg-blue-50 font-semibold text-blue-700 shadow-[inset_3px_0_0_0] shadow-blue-600'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <NavIcon
-                    label={item.label}
-                    className={`h-5 w-5 flex-shrink-0 ${
-                      isActive(item.href) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
-                    }`}
-                  />
-                  {item.label}
-                </Link>
-              </li>
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition ${
+                  isActive(item.href)
+                    ? 'bg-blue-600 font-semibold text-white'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                <NavIcon label={item.label} className="h-4 w-4" />
+                {item.label}
+              </Link>
             ))}
-          </ul>
-        </nav>
+          </nav>
 
-        <div className="border-t border-gray-100 p-3">
-          <ProfileMenu email={email} roleLabel={roleLabel} direction="up" />
+          {/* ── Desktop tab nav ─────────────────────────────────────── */}
+          <nav className="hidden gap-1 lg:flex">
+            {navItems.map(item => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`group -mb-px flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm transition ${
+                  isActive(item.href)
+                    ? 'border-blue-600 font-semibold text-blue-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
+                }`}
+              >
+                <NavIcon
+                  label={item.label}
+                  className={`h-5 w-5 flex-shrink-0 ${
+                    isActive(item.href) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                  }`}
+                />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
-      </aside>
-
-      {/* ── Mobile header + nav strip ───────────────────────────────── */}
-      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white lg:hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <Brand brandLetter={brandLetter} badge={badge} />
-          <ProfileMenu email={email} roleLabel={roleLabel} compact direction="down" />
-        </div>
-        {searchPath && (
-          <div className="px-4 pb-3">
-            <SearchForm searchPath={searchPath} placeholder={searchPlaceholder} />
-          </div>
-        )}
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3">
-          {navItems.map(item => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition ${
-                isActive(item.href)
-                  ? 'bg-blue-600 font-semibold text-white'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              <NavIcon label={item.label} className="h-4 w-4" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+      </header>
 
       {/* ── Content ─────────────────────────────────────────────────── */}
-      <div className="lg:pl-64">
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">{children}</main>
-      </div>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-8">{children}</main>
     </div>
   );
 }
