@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 
-const logs = [
+// Static mock dataset for operational trails
+const initialLogs = [
   { id: 'LOG-001', user: 'Faye Cheah', email: 'faye.cheah@email.com', action: 'Login successful', ip: '182.55.12.34', time: '8 Apr 2026 · 09:14:22', success: true },
   { id: 'LOG-002', user: 'Sarah Lim', email: 'sarah.lim@email.com', action: 'Login failed — incorrect password', ip: '103.24.77.12', time: '8 Apr 2026 · 08:52:05', success: false },
   { id: 'LOG-003', user: 'Sarah Lim', email: 'sarah.lim@email.com', action: 'Login failed — incorrect password', ip: '103.24.77.12', time: '8 Apr 2026 · 08:51:44', success: false },
@@ -20,130 +21,135 @@ const logs = [
 const filters = ['All', 'Login', 'Failed', 'Admin actions', 'Password'];
 
 export default function OperationLogPage() {
+  const [logs] = useState(initialLogs);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
 
-  const filteredLogs = logs.filter(log => {
-    const normalizedSearch = search.toLowerCase();
-    const matchesSearch =
-      log.user.toLowerCase().includes(normalizedSearch) ||
-      log.email.toLowerCase().includes(normalizedSearch) ||
-      log.action.toLowerCase().includes(normalizedSearch) ||
+  const filtered = logs.filter(log => {
+    const matchSearch =
+      log.user.toLowerCase().includes(search.toLowerCase()) ||
+      log.action.toLowerCase().includes(search.toLowerCase()) ||
       log.ip.includes(search);
 
-    const matchesFilter =
-      activeFilter === 'All'
-        ? true
-        : activeFilter === 'Login'
-          ? log.action.toLowerCase().includes('login')
-          : activeFilter === 'Failed'
-            ? !log.success
-            : activeFilter === 'Admin actions'
-              ? log.user === 'Admin'
-              : activeFilter === 'Password'
-                ? log.action.toLowerCase().includes('password')
-                : true;
+    const matchFilter =
+      activeFilter === 'All' ? true :
+      activeFilter === 'Login' ? log.action.toLowerCase().includes('login') :
+      activeFilter === 'Failed' ? !log.success :
+      activeFilter === 'Admin actions' ? (log.user === 'Admin' || log.user === 'Operations Staff') :
+      activeFilter === 'Password' ? log.action.toLowerCase().includes('password') :
+      true;
 
-    return matchesSearch && matchesFilter;
+    return matchSearch && matchFilter;
   });
 
-  const successCount = logs.filter(log => log.success).length;
-  const failCount = logs.filter(log => !log.success).length;
-  const uniqueUserCount = new Set(logs.map(log => log.user)).size;
+  const successCount = logs.filter(l => l.success).length;
+  const failCount = logs.filter(l => !l.success).length;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm text-gray-500">Operations</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950">Operation Log</h1>
-        <p className="mt-2 text-sm text-gray-500">Read-only record of authentication, admin, and operational activity.</p>
+    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      {/* Header Framework */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Operation Log</h1>
+        <p className="text-gray-400 text-sm mt-1">
+          Read-only record of authentication, admin, and operational activity.
+        </p>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Events" value={logs.length} />
-        <StatCard label="Successful" value={successCount} />
-        <StatCard label="Failed / Suspicious" value={failCount} tone="text-red-500" />
-        <StatCard label="Unique Users" value={uniqueUserCount} />
-      </section>
+      {/* Dynamic Summary Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: 'TOTAL EVENTS', value: logs.length, color: 'text-gray-900' },
+          { label: 'SUCCESSFUL', value: successCount, color: 'text-green-600' },
+          { label: 'FAILED / SUSPICIOUS', value: failCount, color: 'text-red-500' },
+          { label: 'UNIQUE USERS', value: [...new Set(logs.map(l => l.user))].length, color: 'text-gray-900' },
+        ].map((s, i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
+            <p className="text-xs text-gray-400 font-medium tracking-wide mb-2 truncate">{s.label}</p>
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
 
-      <section className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {filters.map(filter => (
+      {/* Control Panel: Filters & Search */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+        <div className="flex flex-wrap gap-2 order-2 lg:order-1">
+          {filters.map(f => (
             <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                activeFilter === filter
-                  ? 'bg-blue-700 text-white'
-                  : 'border border-gray-200 bg-white text-gray-500 hover:text-gray-700'
+              key={f}
+              onClick={() => setActiveFilter(f)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap ${
+                activeFilter === f
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/10'
+                  : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
               }`}
               type="button"
             >
-              {filter}
+              {f}
             </button>
           ))}
         </div>
-
-        <div className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 transition focus-within:ring-2 focus-within:ring-blue-500/20 md:w-80">
-          <svg className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 w-full lg:w-72 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition order-1 lg:order-2">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             value={search}
-            onChange={event => setSearch(event.target.value)}
+            onChange={e => setSearch(e.target.value)}
             placeholder="Search user, action, IP..."
-            className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
+            className="text-sm text-gray-700 outline-none w-full bg-transparent placeholder-gray-400"
           />
         </div>
-      </section>
+      </div>
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      {/* Table Card Frame */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px]">
+          <table className="w-full min-w-[950px]">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/70">
-                {['Status', 'Log ID', 'User', 'Action', 'IP Address', 'Timestamp'].map(heading => (
-                  <th key={heading} className="whitespace-nowrap px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                    {heading}
-                  </th>
+              <tr className="border-b border-gray-100 bg-gray-50/50">
+                {['STATUS', 'LOG ID', 'USER', 'ACTION', 'IP ADDRESS', 'TIMESTAMP'].map(h => (
+                  <th key={h} className="text-left text-xs text-gray-400 font-medium px-6 py-4 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map(log => (
-                <tr key={log.id} className="border-b border-gray-50 transition last:border-b-0 hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <span className={`block h-2 w-2 rounded-full ${log.success ? 'bg-green-500' : 'bg-red-400'}`} />
+              {filtered.map((log, i) => (
+                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/80 transition">
+                  <td className="px-6 py-5 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <span className={`relative flex h-2 w-2 rounded-full ${log.success ? 'bg-green-500' : 'bg-red-500'}`}>
+                        {!log.success && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        )}
+                      </span>
+                    </div>
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 font-mono text-xs text-gray-400">{log.id}</td>
-                  <td className="min-w-[180px] px-6 py-4">
-                    <p className="truncate text-sm font-semibold text-gray-900">{log.user}</p>
-                    <p className="truncate text-xs text-gray-400">{log.email}</p>
+                  <td className="px-6 py-5 text-xs font-mono text-gray-400 whitespace-nowrap">{log.id}</td>
+                  <td className="px-6 py-5 max-w-[220px]">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate whitespace-nowrap">{log.user}</p>
+                      <p className="text-xs text-gray-400 truncate whitespace-nowrap mt-0.5">{log.email}</p>
+                    </div>
                   </td>
-                  <td className="min-w-[250px] px-6 py-4">
-                    <p className={`text-sm leading-normal ${log.success ? 'text-gray-700' : 'font-medium text-red-500'}`}>
+                  <td className="px-6 py-5 max-w-[340px]">
+                    <p className={`text-sm leading-normal ${log.success ? 'text-gray-600' : 'text-red-600 font-medium'}`}>
                       {log.action}
                     </p>
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 font-mono text-xs text-gray-400">{log.ip}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-xs text-gray-400">{log.time}</td>
+                  <td className="px-6 py-5 text-xs font-mono text-gray-400 whitespace-nowrap">{log.ip}</td>
+                  <td className="px-6 py-5 text-xs text-gray-400 whitespace-nowrap">{log.time}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {filteredLogs.length === 0 && <div className="py-16 text-center text-sm text-gray-400">No logs found.</div>}
-      </section>
-    </div>
-  );
-}
-
-function StatCard({ label, value, tone = 'text-gray-950' }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="mb-2 truncate text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
-      <p className={`text-2xl font-bold ${tone}`}>{value}</p>
+        {filtered.length === 0 && (
+          <div className="text-center py-20 text-gray-400 text-sm bg-gray-50/20">
+            No operational event trails match your current configuration.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

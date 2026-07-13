@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 // Helper tools to parse strings smoothly for runtime calculations
 const parseAmount = (str) => {
@@ -47,17 +47,63 @@ function RequestTypeCard({ isSelected, type, label, description, onClick, childr
 
 function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClose, onSubmit }) {
   const submitLabel = requestType === 'deposit' ? 'Submit Deposit' : 'Submit Withdrawal';
+  const inputRef = useRef(null);
 
-  // Smart masking: Automatically pads standard decimal places
+  // Instantly auto-focus the input box right as the modal opens
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
+  const formatToTwoDecimals = (val) => {
+    if (!val && val !== 0) return '';
+    const parsed = parseFloat(val);
+    return !isNaN(parsed) ? parsed.toFixed(2) : '';
+  };
+
+  const handleInputChange = (e) => {
+    let val = e.target.value.replace(/[^0-9.]/g, '');
+    const parts = val.split('.');
+    if (parts.length > 2) return;
+    if (parts[1] && parts[1].length > 2) {
+      val = `${parts[0]}.${parts[1].slice(0, 2)}`;
+    }
+    setAmount(val);
+  };
+
   const handleAmountBlur = () => {
-    if (!amount) return;
-    const parsed = parseFloat(amount);
-    if (!isNaN(parsed) && parsed > 0) {
-      setAmount(parsed.toFixed(2));
+    if (amount) {
+      setAmount(formatToTwoDecimals(amount));
     }
   };
 
-  // Determine submit button accent colors dynamically
+  // Step increments that rigidly lock the 2-decimal structure
+  const stepUp = () => {
+    const currentVal = parseFloat(amount) || 0;
+    setAmount((currentVal + 1).toFixed(2));
+  };
+
+  const stepDown = () => {
+    const currentVal = parseFloat(amount) || 0;
+    setAmount(Math.max(0, currentVal - 1).toFixed(2));
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      stepUp();
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      stepDown();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (!amount) return;
+      setAmount(formatToTwoDecimals(amount));
+      if (inputRef.current) inputRef.current.blur();
+    }
+  };
+
   const submitBtnColors = requestType === 'deposit'
     ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/10 focus:ring-emerald-500/20'
     : 'bg-amber-700 hover:bg-amber-800 shadow-amber-500/10 focus:ring-amber-500/20';
@@ -114,21 +160,47 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
             </div>
           </div>
 
-          {/* Clean Smart Banking Input Container */}
+          {/* Amount Input Container */}
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-gray-600">Amount (SGD)</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 transition focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
+            <div className="relative flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 transition focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100">
               <span className="text-lg font-semibold text-gray-400">$</span>
+              
               <input
-                type="number"
-                min="0"
-                step="0.01"
+                ref={inputRef}
+                type="text"
+                inputMode="decimal"
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onChange={handleInputChange}
                 onBlur={handleAmountBlur}
+                onKeyDown={handleKeyDown}
                 placeholder="0.00"
-                className="w-full bg-transparent text-lg font-semibold text-gray-900 outline-none placeholder:text-gray-400"
+                className="w-full bg-transparent text-lg font-semibold text-gray-900 outline-none placeholder:text-gray-400 pr-8"
               />
+
+              {/* Exact replacement for native arrow steppers that works on text type */}
+              <div className="absolute right-4 flex flex-col gap-0.5 select-none">
+                <button 
+                  type="button" 
+                  onClick={stepUp}
+                  className="p-0.5 text-gray-400 hover:text-gray-600 transition"
+                  aria-label="Increase amount"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8l-6 6h12z"/>
+                  </svg>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={stepDown}
+                  className="p-0.5 text-gray-400 hover:text-gray-600 transition"
+                  aria-label="Decrease amount"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 16l6-6H6z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </label>
 
@@ -151,7 +223,7 @@ function NewRequestModal({ requestType, setRequestType, amount, setAmount, onClo
           </button>
           <button
             type="button"
-            onClick={onSubmit}
+            onClick={() => onSubmit()}
             className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none ${submitBtnColors}`}
             disabled={!amount || parseFloat(amount) <= 0}
           >
@@ -169,6 +241,17 @@ function RequestTransactionContent({ initialRequests }) {
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
   const [requestType, setRequestType] = useState('deposit');
   const [amount, setAmount] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '' });
+
+  // Auto-dismiss notification hook matching the 3000ms document style window
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast({ show: false, message: '' });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.show]);
 
   const counts = useMemo(() => {
     return {
@@ -224,12 +307,19 @@ function RequestTransactionContent({ initialRequests }) {
     };
 
     setRequestsList([newRow, ...requestsList]);
+    
+    const variantLabel = requestType === 'deposit' ? 'Deposit' : 'Withdrawal';
+    setToast({
+      show: true,
+      message: `${variantLabel} request has been sent!`,
+    });
+
     setAmount('');
     setIsNewRequestOpen(false);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -377,6 +467,16 @@ function RequestTransactionContent({ initialRequests }) {
           onClose={() => setIsNewRequestOpen(false)}
           onSubmit={handleCreateRequest}
         />
+      )}
+
+      {/* Toast Layout Mirroring the exact DocumentsPage configuration */}
+      {toast.show && (
+        <div className="fixed bottom-6 right-6 bg-gray-900 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 animate-fade-in">
+          <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="pr-1">{toast.message}</span>
+        </div>
       )}
     </div>
   );

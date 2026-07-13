@@ -15,8 +15,6 @@ export default function DashboardLayout({
   const navItems = [
     { label: 'Dashboard', href: '/investor' },
     { label: 'Funds', href: '/funds' },
-    { label: 'Activity', href: '/activity' },
-    { label: 'Reports', href: '/reports' },
     { label: 'Documents', href: '/documents' },
     { label: 'Request Transaction', href: '/request-transaction' },
   ];
