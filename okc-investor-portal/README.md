@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OKC Investor Portal
 
-## Getting Started
+Secure investor portal for OKC, built with [Next.js 16](https://nextjs.org) (App Router), [Supabase](https://supabase.com) auth, Tailwind CSS 4, and Prisma.
 
-First, run the development server:
+## Getting started
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Install dependencies:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+   ```bash
+   npm install
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. Create `.env.local` with your Supabase project credentials:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=...              # Supabase dashboard > Project Settings > API
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+   SUPABASE_SERVICE_ROLE_KEY=...             # server-only; required for admin user management
 
-## Learn More
+   # Optional — SMTP for emailing credentials to invited users (see lib/email.ts)
+   SMTP_HOST=...
+   SMTP_PORT=587
+   SMTP_USER=...
+   SMTP_PASS=...
+   SMTP_FROM=...
 
-To learn more about Next.js, take a look at the following resources:
+   # Optional — Prisma (see prisma.config.ts)
+   DATABASE_URL=...
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Run the dev server:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```bash
+   npm run dev
+   ```
 
-## Deploy on Vercel
+   Open [http://localhost:3000](http://localhost:3000). In development, [/debug-users](http://localhost:3000/debug-users) can seed test accounts (disabled in production).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Roles and routes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Every signed-in user has a role stored in Supabase `app_metadata` (see `lib/auth/roles.ts`). The proxy (`proxy.ts` → `lib/supabase/proxy.ts`) refreshes the session and routes each role to its own section:
+
+| Role         | Home         | Section pages                                                            |
+| ------------ | ------------ | ------------------------------------------------------------------------ |
+| `investor`   | `/investor`  | `app/(investor)` — funds, activity, reports, documents, request-transaction |
+| `operations` | `/operations`| `app/(operations)` — ops-transactions, data-import, investors, operation-log |
+| `admin`      | `/admin`     | `app/(admin)` — users, audit-logs, transactions, settings                 |
+
+Admin-created accounts receive a temporary password by email and are forced through `/change-password` on first sign-in.
+
+## Project layout
+
+- `app/` — routes, grouped by role; route-specific client components sit next to their `page.jsx`
+- `components/` — shared UI (auth panels, dashboard cards/charts, operations badges)
+- `lib/` — Supabase clients (`browser`, `server`, `admin`), role definitions, email sending
+- `prisma/` — database schema (Prisma 7, PostgreSQL)
+
+## Scripts
+
+- `npm run dev` — development server
+- `npm run build` — production build
+- `npm run lint` — ESLint
