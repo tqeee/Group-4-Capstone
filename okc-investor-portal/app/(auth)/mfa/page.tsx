@@ -77,7 +77,7 @@ export default function MfaChallengePage() {
           <>
             <h1 className="mb-3 text-2xl font-bold text-slate-900">Enter verification code</h1>
             <p className="mb-8 text-sm leading-relaxed text-slate-500">
-              Open your authenticator app and enter the 6-digit code for your OKC Capital
+              Open your authenticator app and enter the 6-digit code for your OKC
               account.
             </p>
 

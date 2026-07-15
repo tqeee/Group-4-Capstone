@@ -175,7 +175,7 @@ function Brand({ brandLetter, badge }) {
         {brandLetter}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-[15px] font-bold leading-tight text-gray-900">OKC Capital</p>
+        <p className="truncate text-[15px] font-bold leading-tight text-gray-900">OKC</p>
         {badge && (
           <span className="mt-0.5 inline-block rounded-full bg-blue-50 px-2 py-px text-[11px] font-semibold text-blue-600">
             {badge}

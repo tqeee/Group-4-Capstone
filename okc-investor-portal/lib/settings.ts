@@ -5,8 +5,8 @@ import { prisma } from '@/lib/db'
 // investors submit fund-flow requests; largeTransactionThreshold is surfaced
 // to operations during review.
 export const SETTING_DEFAULTS = {
-  portalName: 'OKC Capital Investor Portal',
-  contactEmail: 'im@okccapital.sg',
+  portalName: 'OKC Investor Portal',
+  contactEmail: 'im@okc.com',
   navUpdateTime: '19:00',
   timezone: 'Asia/Singapore',
   minDeposit: '1000',

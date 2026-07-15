@@ -36,7 +36,7 @@ export async function GET(
 
   const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`
   const lines = [
-    ['OKC Capital Investor Portal — Account Statement'],
+    ['OKC Investor Portal — Account Statement'],
     [`Investor:`, investor.name, investor.email],
     [`Period:`, month],
     [`Generated:`, new Date().toISOString()],

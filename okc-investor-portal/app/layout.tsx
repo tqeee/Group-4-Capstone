@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'OKC Investor Portal',
-  description: 'Secure investor portal for OKC Partners',
+  description: 'Secure investor portal for OKC',
 }
 
 export default function RootLayout({

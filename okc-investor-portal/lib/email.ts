@@ -27,11 +27,11 @@ export async function sendCredentialsEmail({
 
   const resend = new Resend(apiKey)
   const { error } = await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? 'OKC Capital <onboarding@resend.dev>',
+    from: process.env.EMAIL_FROM ?? 'OKC <onboarding@resend.dev>',
     to,
-    subject: 'Your OKC Capital investor portal account',
+    subject: 'Your OKC investor portal account',
     text: [
-      'An account has been created for you on the OKC Capital investor portal.',
+      'An account has been created for you on the OKC investor portal.',
       '',
       `Sign in at: ${loginUrl}`,
       `Email: ${to}`,
@@ -43,7 +43,7 @@ export async function sendCredentialsEmail({
     ].join('\n'),
     html: `
       <div style="font-family: Arial, Helvetica, sans-serif; max-width: 520px; margin: 0 auto; color: #071437;">
-        <h2 style="color: #071437;">Welcome to the OKC Capital investor portal</h2>
+        <h2 style="color: #071437;">Welcome to the OKC investor portal</h2>
         <p>An account has been created for you. Use the credentials below to sign in:</p>
         <table style="border-collapse: collapse; margin: 16px 0;">
           <tr>

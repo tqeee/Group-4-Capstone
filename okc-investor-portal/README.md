@@ -1,6 +1,6 @@
 # OKC Investor Portal
 
-Secure investor portal for OKC Capital, built with [Next.js 16](https://nextjs.org) (App Router), [Supabase](https://supabase.com) auth, Tailwind CSS 4, and Prisma.
+Secure investor portal for OKC, built with [Next.js 16](https://nextjs.org) (App Router), [Supabase](https://supabase.com) auth, Tailwind CSS 4, and Prisma.
 
 ## Getting started
 

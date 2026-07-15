@@ -29,7 +29,7 @@ export default function ReportsClient({ overview, reports }) {
   const totalTradingDays = monthly.reduce((s, m) => s + m.tradingDays, 0);
   const bestDay = daily.reduce((a, b) => (a.pnl > b.pnl ? a : b));
   const worstDay = daily.reduce((a, b) => (a.pnl < b.pnl ? a : b));
-  const periodLabel = `${fmtDate(daily[0].date)} – ${fmtDate(daily[daily.length - 1].date)}`;
+  const periodLabel = `${fmtDate(daily[0].date)} - ${fmtDate(daily[daily.length - 1].date)}`;
 
   return (
     <div>
