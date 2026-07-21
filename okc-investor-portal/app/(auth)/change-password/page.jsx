@@ -39,7 +39,7 @@ export default function ChangePasswordPage() {
                 required
                 minLength={12}
                 autoComplete="new-password"
-                placeholder="At least 12 characters"
+                placeholder="Enter your new password"
                 className="auth-input"
               />
             </div>

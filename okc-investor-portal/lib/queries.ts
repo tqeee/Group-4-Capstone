@@ -82,7 +82,7 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     const t = r.date.getTime()
     const agg = byDay.get(t) ?? { value: 0, pnl: 0, opening: 0 }
     agg.value += num(r.closingValue)
-    agg.pnl += num(r.pnlShare)
+    agg.pnl += num(r.pnl)
     agg.opening += num(r.openingValue)
     byDay.set(t, agg)
   }
@@ -105,7 +105,7 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   const perFund = new Map<string, { day: number; mtd: number; inception: number }>()
   for (const r of rows) {
     const agg = perFund.get(r.fundId) ?? { day: 0, mtd: 0, inception: 0 }
-    const pnl = num(r.pnlShare)
+    const pnl = num(r.pnl)
     agg.inception += pnl
     if (r.date.getTime() >= monthStart) agg.mtd += pnl
     if (r.date.getTime() === lastT) agg.day += pnl
@@ -171,7 +171,7 @@ export async function getInvestorReports(investorId: string): Promise<ReportData
   for (const r of rows) {
     const t = r.date.getTime()
     const agg = byDay.get(t) ?? { pnl: 0, value: 0, opening: 0 }
-    agg.pnl += num(r.pnlShare)
+    agg.pnl += num(r.pnl)
     agg.value += num(r.closingValue)
     agg.opening += num(r.openingValue)
     byDay.set(t, agg)
@@ -229,7 +229,7 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
   const [flows, ledger] = await Promise.all([
     prisma.fundFlow.findMany({ where: { investorId }, include: { fund: true } }),
     prisma.investorDailyLedger.findMany({
-      where: { investorId, pnlShare: { not: 0 } },
+      where: { investorId, pnl: { not: 0 } },
       include: { fund: true },
     }),
   ])
@@ -248,7 +248,7 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
       date: r.date.toISOString(),
       type: 'Daily P&L' as const,
       fund: r.fund.name,
-      amount: num(r.pnlShare),
+      amount: num(r.pnl),
       status: 'Completed' as const,
     })),
   ]

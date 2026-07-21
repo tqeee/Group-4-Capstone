@@ -74,8 +74,7 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
     date: Date
     openingSharePct: number
     openingValue: number
-    pnlShare: number
-    flows: number
+    pnl: number
     closingValue: number
     closingSharePct: number
   }[] = []
@@ -118,8 +117,7 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
           date: new Date(t),
           openingSharePct: round8(openingSharePct),
           openingValue: round2(openingValue),
-          pnlShare: round2(pnlShare),
-          flows: round2(flow),
+          pnl: round2(pnlShare),
           closingValue: round2(closingValue),
           closingSharePct: 0, // filled in below once closing is known
         })

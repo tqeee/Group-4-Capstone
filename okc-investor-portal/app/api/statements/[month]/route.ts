@@ -34,6 +34,27 @@ export async function GET(
   })
   if (rows.length === 0) return new Response('No activity in this month', { status: 404 })
 
+  // The per-day `flows` column was dropped from investor_daily_ledger, so
+  // reconstruct each (fund, day)'s net deposits/withdrawals from the processed
+  // FundFlow records — the same source rebuildFundLedger used to populate it.
+  const flowRows = await prisma.fundFlow.findMany({
+    where: {
+      investorId: investor.id,
+      status: { in: ['APPROVED', 'COMPLETED'] },
+      processedDate: { gte: start, lt: end },
+    },
+    select: { fundId: true, type: true, amount: true, processedDate: true },
+  })
+  const flowByKey = new Map<string, number>()
+  for (const f of flowRows) {
+    if (!f.processedDate) continue
+    const key = `${f.fundId}|${f.processedDate.toISOString().slice(0, 10)}`
+    const signed = f.type === 'DEPOSIT' ? Number(f.amount) : -Number(f.amount)
+    flowByKey.set(key, (flowByKey.get(key) ?? 0) + signed)
+  }
+  const flowFor = (fundId: string, date: Date) =>
+    flowByKey.get(`${fundId}|${date.toISOString().slice(0, 10)}`) ?? 0
+
   const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`
   const lines = [
     ['OKC Investor Portal — Account Statement'],
@@ -46,8 +67,8 @@ export async function GET(
       r.date.toISOString().slice(0, 10),
       r.fund.name,
       Number(r.openingValue).toFixed(2),
-      Number(r.pnlShare).toFixed(2),
-      Number(r.flows).toFixed(2),
+      Number(r.pnl).toFixed(2),
+      flowFor(r.fundId, r.date).toFixed(2),
       Number(r.closingValue).toFixed(2),
       (Number(r.closingSharePct) * 100).toFixed(4),
     ]),
@@ -56,8 +77,8 @@ export async function GET(
       'Totals',
       '',
       Number(rows[0].openingValue).toFixed(2),
-      rows.reduce((s, r) => s + Number(r.pnlShare), 0).toFixed(2),
-      rows.reduce((s, r) => s + Number(r.flows), 0).toFixed(2),
+      rows.reduce((s, r) => s + Number(r.pnl), 0).toFixed(2),
+      rows.reduce((s, r) => s + flowFor(r.fundId, r.date), 0).toFixed(2),
       Number(rows[rows.length - 1].closingValue).toFixed(2),
       '',
     ],

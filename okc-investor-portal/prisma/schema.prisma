@@ -122,7 +122,10 @@ model Deal {
   batch ImportBatch? @relation(fields: [batchId], references: [id])
 
   @@index([fundId, time])
-  @@map("deals")
+  // Teammate renamed the `deals` table to `investment_transactions` directly in
+  // the shared DB (pure ALTER TABLE RENAME — same columns/PK/FKs). Model + all
+  // `prisma.deal.*` code stay as-is; only the physical table name is remapped.
+  @@map("investment_transactions")
 }
 
 // Audit trail for the data ingestion pipeline (which file, who, how many rows).
@@ -151,6 +154,12 @@ model FundDailyNav {
   netFlows       Decimal  @db.Decimal(18, 2)
   closingBalance Decimal  @db.Decimal(18, 2)
 
+  // Added directly to the shared DB by a teammate (analytics — §8.2/§3.5).
+  // Modeled here (nullable, @map to their snake_case names) purely so that a
+  // future `prisma migrate dev` recognises them and does NOT drop their work.
+  dailyReturnPct Decimal? @map("daily_return_pct")
+  tradeCount     Int?     @map("trade_count")
+
   fund Fund @relation(fields: [fundId], references: [id])
 
   @@unique([fundId, date])
@@ -159,7 +168,7 @@ model FundDailyNav {
 
 // Section 8.1: per-investor intermediate workings, one row per investor per
 // day. 5.3 holdings = closingSharePct on the requested as-of date; 8.2 total
-// dollar PNL = sum(pnlShare) over the requested period.
+// dollar PNL = sum(pnl) over the requested period.
 model InvestorDailyLedger {
   id              String   @id @default(cuid())
   investorId      String
@@ -167,8 +176,7 @@ model InvestorDailyLedger {
   date            DateTime @db.Date
   openingSharePct Decimal  @db.Decimal(12, 8) // 0..1
   openingValue    Decimal  @db.Decimal(18, 2)
-  pnlShare        Decimal  @db.Decimal(18, 2)
-  flows           Decimal  @db.Decimal(18, 2) // net processed flows that day
+  pnl             Decimal  @db.Decimal(18, 2) // this investor's share of the day's fund P&L (DB column was renamed from pnlShare)
   closingValue    Decimal  @db.Decimal(18, 2)
   closingSharePct Decimal  @db.Decimal(12, 8)
 
