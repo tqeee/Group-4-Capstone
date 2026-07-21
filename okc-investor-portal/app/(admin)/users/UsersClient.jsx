@@ -71,7 +71,7 @@ export default function UsersClient({ users, loadError }) {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Header — Wraps gracefully on mobile views */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Users</h1>
@@ -96,7 +96,7 @@ export default function UsersClient({ users, loadError }) {
         </div>
       )}
 
-      {/* Stats row — Dynamic switching layouts based on screen size */}
+      {/* Stats row with dynamic switching layouts based on screen size */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'TOTAL USERS', value: users.length },
@@ -201,7 +201,7 @@ export default function UsersClient({ users, loadError }) {
 
       {/* Add-user modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn transition-all duration-300">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 w-full max-w-md shadow-xl transform transition-all">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-gray-900">Add new user</h2>
@@ -288,10 +288,10 @@ export default function UsersClient({ users, loadError }) {
         </div>
       )}
 
-      {/* Toast alert handling code */}
+      {/* Toast alert handling */}
       {toast && (
-        <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-gray-900 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0">
-          <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-white/70 backdrop-blur-sm border border-gray-200 text-gray-900 text-sm px-5 py-3.5 rounded-2xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0 animate-slideUp">
+          <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="truncate">{toast}</span>

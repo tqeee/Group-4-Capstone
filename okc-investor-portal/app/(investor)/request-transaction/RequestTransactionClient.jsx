@@ -20,7 +20,7 @@ function RequestTypeCard({ isSelected, label, description, onClick, children }) 
           isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
         }`}
       >
-        {children}
+        {children}  
       </span>
       <span>
         <span className={`block font-semibold ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
