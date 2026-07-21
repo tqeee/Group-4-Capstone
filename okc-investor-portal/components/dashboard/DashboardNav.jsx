@@ -224,44 +224,57 @@ export default function DashboardNav({
               <SearchForm searchPath={searchPath} placeholder={searchPlaceholder} />
             </div>
           )}
-          <nav className="flex gap-1 overflow-x-auto pb-3 lg:hidden">
-            {navItems.map(item => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition ${
-                  isActive(item.href)
-                    ? 'bg-blue-600 font-semibold text-white'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-                }`}
-              >
-                <NavIcon label={item.label} className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
+          <nav className="flex gap-2 overflow-x-auto pb-3 lg:hidden">
+            {navItems.map(item => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <NavIcon label={item.label} className="h-4 w-4 flex-shrink-0" />
+                  <span className="whitespace-nowrap">{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
 
           {/* ── Desktop tab nav ─────────────────────────────────────── */}
-          <nav className="hidden gap-1 lg:flex">
-            {navItems.map(item => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`group -mb-px flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm transition ${
-                  isActive(item.href)
-                    ? 'border-blue-600 font-semibold text-blue-700'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
-                }`}
-              >
-                <NavIcon
-                  label={item.label}
-                  className={`h-5 w-5 flex-shrink-0 ${
-                    isActive(item.href) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+          {/* Active state is a rounded "pill" that wraps the whole icon+label,
+              so the highlight is always symmetric/centred — unlike a bottom
+              underline, which sits off-centre under short labels because it
+              also spans the icon. Font weight stays constant across states so
+              switching tabs never reflows the row. */}
+          <nav className="hidden items-center gap-2 pb-3 lg:flex">
+            {navItems.map(item => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`group flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                   }`}
-                />
-                {item.label}
-              </Link>
-            ))}
+                >
+                  <NavIcon
+                    label={item.label}
+                    className={`h-5 w-5 flex-shrink-0 transition-colors ${
+                      active ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                    }`}
+                  />
+                  <span className="whitespace-nowrap">{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </header>
