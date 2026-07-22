@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { compoundReturn } from '@/lib/ledger'
+import { getFundLabels } from '@/lib/fundLabels'
 
 // Read models for the portal pages. Everything returned here is plain JSON
 // (numbers/strings/booleans) so it can cross the server->client boundary.
@@ -57,7 +58,7 @@ export type InvestorOverview = {
 }
 
 export async function getInvestorOverview(investorId: string): Promise<InvestorOverview> {
-  const [rows, deposits] = await Promise.all([
+  const [rows, deposits, labels] = await Promise.all([
     prisma.investorDailyLedger.findMany({
       where: { investorId },
       orderBy: { date: 'asc' },
@@ -67,6 +68,7 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
       where: { investorId, type: 'DEPOSIT', status: 'COMPLETED' },
       _sum: { amount: true },
     }),
+    getFundLabels(),
   ])
 
   const empty: InvestorOverview = {
@@ -113,8 +115,8 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   }
   const allocation = latestRows.map(r => ({
     fundId: r.fundId,
-    code: r.fund.code,
-    name: r.fund.name,
+    code: labels.get(r.fundId)?.code ?? '?',
+    name: labels.get(r.fundId)?.name ?? 'Fund',
     currency: r.fund.currency,
     riskLevel: r.fund.riskLevel,
     strategy: r.fund.strategy,
@@ -226,12 +228,13 @@ export type ActivityItem = {
 }
 
 export async function getInvestorActivity(investorId: string): Promise<ActivityItem[]> {
-  const [flows, ledger] = await Promise.all([
+  const [flows, ledger, labels] = await Promise.all([
     prisma.fundFlow.findMany({ where: { investorId }, include: { fund: true } }),
     prisma.investorDailyLedger.findMany({
       where: { investorId, pnl: { not: 0 } },
       include: { fund: true },
     }),
+    getFundLabels(),
   ])
 
   const items: ActivityItem[] = [
@@ -239,7 +242,7 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
       id: f.id,
       date: f.requestDate.toISOString(),
       type: (f.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal') as ActivityItem['type'],
-      fund: f.fund.name,
+      fund: labels.get(f.fundId)?.name ?? 'Fund',
       amount: f.type === 'DEPOSIT' ? num(f.amount) : -num(f.amount),
       status: (f.status.charAt(0) + f.status.slice(1).toLowerCase()) as ActivityItem['status'],
     })),
@@ -247,7 +250,7 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
       id: `pnl-${r.id}`,
       date: r.date.toISOString(),
       type: 'Daily P&L' as const,
-      fund: r.fund.name,
+      fund: labels.get(r.fundId)?.name ?? 'Fund',
       amount: num(r.pnl),
       status: 'Completed' as const,
     })),
@@ -256,17 +259,20 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
 }
 
 export async function getInvestorFlows(investorId: string) {
-  const flows = await prisma.fundFlow.findMany({
-    where: { investorId },
-    include: { fund: true },
-    orderBy: { requestDate: 'desc' },
-  })
+  const [flows, labels] = await Promise.all([
+    prisma.fundFlow.findMany({
+      where: { investorId },
+      include: { fund: true },
+      orderBy: { requestDate: 'desc' },
+    }),
+    getFundLabels(),
+  ])
   return flows.map(f => ({
     id: f.id,
     type: f.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal',
     amount: num(f.amount),
     currency: f.currency,
-    fund: f.fund.name,
+    fund: labels.get(f.fundId)?.name ?? 'Fund',
     requestDate: f.requestDate.toISOString(),
     processedDate: f.processedDate?.toISOString() ?? null,
     status: f.status.charAt(0) + f.status.slice(1).toLowerCase(),
