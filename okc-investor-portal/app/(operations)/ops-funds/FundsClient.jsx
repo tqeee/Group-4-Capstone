@@ -16,8 +16,7 @@ export default function FundsClient({ funds }) {
   const [toast, setToast] = useState(null);
   const [state, formAction, isPending] = useActionState(createFund, undefined);
 
-  // Close the modal and surface a toast when creation succeeds. Done during
-  // render (not in an effect) per https://react.dev/learn/you-might-not-need-an-effect.
+  // Close the modal and surface a toast when creation succeeds.
   const [handledState, setHandledState] = useState(state);
   if (state !== handledState) {
     setHandledState(state);
@@ -139,10 +138,10 @@ export default function FundsClient({ funds }) {
         </div>
       </section>
 
-      {/* Add-fund modal */}
+      {/* Add-fund modal with blurred background */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl sm:p-8">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn transition-all duration-300">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl transform transition-all sm:p-8">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Add new fund</h2>
