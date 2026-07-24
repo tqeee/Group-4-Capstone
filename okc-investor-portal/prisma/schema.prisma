@@ -160,6 +160,10 @@ model FundDailyNav {
   dailyReturnPct Decimal? @map("daily_return_pct")
   tradeCount     Int?     @map("trade_count")
 
+  // When this row was last (re)computed by rebuildFundLedger — the real
+  // "NAV as of ... <time>" shown in the UI, replacing a hardcoded placeholder.
+  updatedAt DateTime @updatedAt
+
   fund Fund @relation(fields: [fundId], references: [id])
 
   @@unique([fundId, date])
@@ -179,6 +183,9 @@ model InvestorDailyLedger {
   pnl             Decimal  @db.Decimal(18, 2) // this investor's share of the day's fund P&L (DB column was renamed from pnlShare)
   closingValue    Decimal  @db.Decimal(18, 2)
   closingSharePct Decimal  @db.Decimal(12, 8)
+
+  // When this row was last (re)computed by rebuildFundLedger.
+  updatedAt DateTime @updatedAt
 
   investor Investor @relation(fields: [investorId], references: [id])
   fund     Fund     @relation(fields: [fundId], references: [id])

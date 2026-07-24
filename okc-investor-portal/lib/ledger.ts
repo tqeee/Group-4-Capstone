@@ -22,37 +22,68 @@ function utcDay(d: Date): Date {
 const round2 = (n: number) => Math.round(n * 100) / 100
 const round8 = (n: number) => Math.round(n * 1e8) / 1e8
 
-export async function rebuildFundLedger(fundId: string): Promise<void> {
-  const [deals, flows] = await Promise.all([
-    prisma.deal.findMany({
-      // type 2 = balance (deposits/withdrawals on the broker account) — money
-      // movement, not trading P&L. The portal tracks those as FundFlows.
-      where: { fundId, type: { not: 2 } },
-      select: { time: true, profit: true, commission: true, swap: true, fee: true },
-    }),
-    prisma.fundFlow.findMany({
-      where: {
-        fundId,
-        status: { in: ['APPROVED', 'COMPLETED'] },
-        processedDate: { not: null },
-      },
-      select: { investorId: true, type: true, amount: true, processedDate: true },
-    }),
-  ])
+export type LedgerDeal = {
+  time: Date
+  profit: number
+  commission: number
+  swap: number
+  fee: number
+  entry: number
+}
 
-  // Daily P&L from deals.
+export type LedgerFlow = {
+  investorId: string
+  type: 'DEPOSIT' | 'WITHDRAWAL'
+  amount: number
+  processedDate: Date
+}
+
+export type FundDailyNavRow = {
+  fundId: string
+  date: Date
+  openingBalance: number
+  pnl: number
+  netFlows: number
+  closingBalance: number
+  dailyReturnPct: number | null
+  tradeCount: number
+}
+
+export type InvestorDailyLedgerRow = {
+  investorId: string
+  fundId: string
+  date: Date
+  openingSharePct: number
+  openingValue: number
+  pnl: number
+  closingValue: number
+  closingSharePct: number
+}
+
+// Pure §8.1 calculation: given a fund's deals and processed flows, replay the
+// daily shareholding waterfall and return the rows to persist. No database
+// access here — this is what lets the math be unit-tested without a DB.
+export function computeFundLedger(
+  fundId: string,
+  deals: LedgerDeal[],
+  flows: LedgerFlow[]
+): { navRows: FundDailyNavRow[]; ledgerRows: InvestorDailyLedgerRow[] } {
+  // Daily P&L from deals, plus a count of closed ("out") trades per day for
+  // fund_daily_nav.trade_count (8.2/3.5 analytics column).
   const pnlByDay = new Map<number, number>()
+  const tradeCountByDay = new Map<number, number>()
   for (const d of deals) {
     const key = utcDay(d.time).getTime()
-    const pnl = Number(d.profit) + Number(d.commission) + Number(d.swap) + Number(d.fee)
+    const pnl = d.profit + d.commission + d.swap + d.fee
     pnlByDay.set(key, (pnlByDay.get(key) ?? 0) + pnl)
+    if (d.entry === 1) tradeCountByDay.set(key, (tradeCountByDay.get(key) ?? 0) + 1)
   }
 
   // Net processed flows per investor per day (deposits +, withdrawals -).
   const flowsByDay = new Map<number, Map<string, number>>()
   for (const f of flows) {
-    const key = utcDay(f.processedDate!).getTime()
-    const signed = f.type === 'DEPOSIT' ? Number(f.amount) : -Number(f.amount)
+    const key = utcDay(f.processedDate).getTime()
+    const signed = f.type === 'DEPOSIT' ? f.amount : -f.amount
     const perInvestor = flowsByDay.get(key) ?? new Map<string, number>()
     perInvestor.set(f.investorId, (perInvestor.get(f.investorId) ?? 0) + signed)
     flowsByDay.set(key, perInvestor)
@@ -60,24 +91,8 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
 
   const allDays = [...new Set([...pnlByDay.keys(), ...flowsByDay.keys()])].sort((a, b) => a - b)
 
-  const navRows: {
-    fundId: string
-    date: Date
-    openingBalance: number
-    pnl: number
-    netFlows: number
-    closingBalance: number
-  }[] = []
-  const ledgerRows: {
-    investorId: string
-    fundId: string
-    date: Date
-    openingSharePct: number
-    openingValue: number
-    pnl: number
-    closingValue: number
-    closingSharePct: number
-  }[] = []
+  const navRows: FundDailyNavRow[] = []
+  const ledgerRows: InvestorDailyLedgerRow[] = []
 
   // Running unrounded state: each investor's dollar value of their share.
   const values = new Map<string, number>()
@@ -137,9 +152,50 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
         pnl: round2(dayPnl),
         netFlows: round2(netFlows),
         closingBalance: round2(closing),
+        // Raw fraction (not *100), consistent with openingSharePct/closingSharePct.
+        dailyReturnPct: opening > 0 ? round8(dayPnl / opening) : null,
+        tradeCount: tradeCountByDay.get(t) ?? 0,
       })
     }
   }
+
+  return { navRows, ledgerRows }
+}
+
+export async function rebuildFundLedger(fundId: string): Promise<void> {
+  const [dealsRaw, flowsRaw] = await Promise.all([
+    prisma.deal.findMany({
+      // type 2 = balance (deposits/withdrawals on the broker account) — money
+      // movement, not trading P&L. The portal tracks those as FundFlows.
+      where: { fundId, type: { not: 2 } },
+      select: { time: true, profit: true, commission: true, swap: true, fee: true, entry: true },
+    }),
+    prisma.fundFlow.findMany({
+      where: {
+        fundId,
+        status: { in: ['APPROVED', 'COMPLETED'] },
+        processedDate: { not: null },
+      },
+      select: { investorId: true, type: true, amount: true, processedDate: true },
+    }),
+  ])
+
+  const deals: LedgerDeal[] = dealsRaw.map(d => ({
+    time: d.time,
+    profit: Number(d.profit),
+    commission: Number(d.commission),
+    swap: Number(d.swap),
+    fee: Number(d.fee),
+    entry: d.entry,
+  }))
+  const flows: LedgerFlow[] = flowsRaw.map(f => ({
+    investorId: f.investorId,
+    type: f.type,
+    amount: Number(f.amount),
+    processedDate: f.processedDate!,
+  }))
+
+  const { navRows, ledgerRows } = computeFundLedger(fundId, deals, flows)
 
   await prisma.$transaction([
     prisma.investorDailyLedger.deleteMany({ where: { fundId } }),
