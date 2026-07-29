@@ -25,6 +25,7 @@ enum Role {
   INVESTOR
   OPERATIONS
   ADMIN
+  PORTFOLIO_MANAGER
 }
 
 // 5.1 Investor accounts. Auth lives in Supabase; this row is the portal

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { compoundReturn } from '@/lib/ledger'
+import { fmtDate } from '@/lib/format'
 
 // Read models for the portal pages. Everything returned here is plain JSON
 // (numbers/strings/booleans) so it can cross the server->client boundary.
@@ -416,4 +417,33 @@ export async function getFundTotals() {
     })
   }
   return totals
+}
+
+// Fund-level daily time series (Portfolio Manager performance charts). Signed
+// netFlows is split into deposits/withdrawals buckets purely to match the
+// shape the UI expects — only the net (deposits - withdrawals) is ever used
+// in calculations, and that always equals the original netFlows exactly.
+export type FundDailySeriesPoint = {
+  date: string // 'D Mon YYYY'
+  beginningValue: number
+  dailyPnL: number
+  deposits: number
+  withdrawals: number
+}
+
+export async function getFundDailySeries(fundId: string): Promise<FundDailySeriesPoint[]> {
+  const nav = await prisma.fundDailyNav.findMany({
+    where: { fundId },
+    orderBy: { date: 'asc' },
+  })
+  return nav.map(d => {
+    const netFlows = num(d.netFlows)
+    return {
+      date: fmtDate(d.date),
+      beginningValue: num(d.openingBalance),
+      dailyPnL: num(d.pnl),
+      deposits: netFlows > 0 ? netFlows : 0,
+      withdrawals: netFlows < 0 ? -netFlows : 0,
+    }
+  })
 }
