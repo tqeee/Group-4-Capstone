@@ -25,6 +25,13 @@ enum Role {
   INVESTOR
   OPERATIONS
   ADMIN
+  // Added directly to the shared DB by a teammate (migration
+  // 20260731000000_add_portfolio_manager_role) and already in use by one
+  // investors row. Modeled here so reads don't throw — Prisma errors on any
+  // row whose enum value the client doesn't know. The app-level role union in
+  // lib/auth/roles.ts is deliberately still the three routable roles;
+  // normalizeRole() maps anything else to 'investor'.
+  PORTFOLIO_MANAGER
 }
 
 // 5.1 Investor accounts. Auth lives in Supabase; this row is the portal
