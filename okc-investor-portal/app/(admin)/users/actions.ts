@@ -10,7 +10,12 @@ import { getSiteOrigin } from '@/lib/site-url'
 import { prisma } from '@/lib/db'
 import { audit } from '@/lib/audit'
 
-const DB_ROLE = { investor: 'INVESTOR', operations: 'OPERATIONS', admin: 'ADMIN' } as const
+const DB_ROLE = {
+  investor: 'INVESTOR',
+  operations: 'OPERATIONS',
+  admin: 'ADMIN',
+  'portfolio-manager': 'PORTFOLIO_MANAGER',
+} as const
 
 export type InviteUserState =
   | { status: 'success'; message: string }

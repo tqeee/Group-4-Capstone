@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import StatusBadge from '@/components/operations/StatusBadge'
 import { getFlowsForReview, getFundTotals, getImportBatches, getInvestorsDirectory } from '@/lib/queries'
-import { fmtDate, fmtMoney, fmtPct } from '@/lib/format'
+import { fmtDate, fmtMoney, fmtPct, fmtTime } from '@/lib/format'
 
 // Reads live portal data on every request.
 export const dynamic = 'force-dynamic'
@@ -18,6 +18,7 @@ export default async function OperationsDashboardPage() {
   const investors = directory.filter(i => i.role === 'INVESTOR')
   const aum = funds.reduce((s, f) => s + f.aum, 0)
   const asOf = funds[0]?.asOf ?? null
+  const asOfComputedAt = funds[0]?.asOfComputedAt ?? null
   const recentFlows = flows.slice(0, 6)
 
   const metrics = [
@@ -76,7 +77,7 @@ export default async function OperationsDashboardPage() {
         </div>
         <div className="self-start rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
           <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />
-          NAV as of {asOf ? fmtDate(asOf) : '—'} · 19:00 SGT
+          NAV as of {asOf ? fmtDate(asOf) : '—'} · {fmtTime(asOfComputedAt)}
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import StatCard from '@/components/dashboard/StatCard';
 import PortfolioChart from '@/components/dashboard/PortfolioChart';
 import HoldingsTable from '@/components/dashboard/HoldingsTable';
-import { fmtDate, fmtMoney, fmtPct, fmtMonth } from '@/lib/format';
+import { fmtDate, fmtMoney, fmtPct, fmtMonth, fmtTime } from '@/lib/format';
 
 const FILTERS = ['1W', '1M', '3M', 'YTD', '1Y', 'All'];
 const DONUT_COLORS = ['#2563eb', '#60a5fa', '#bfdbfe', '#1e40af'];
@@ -91,7 +91,7 @@ export default function InvestorDashboard({ name, overview }) {
     positive: fund.dayPnl >= 0,
     mtd: fmtMoney(fund.mtdPnl, { sign: true }),
     inception: fmtMoney(fund.inceptionPnl, { sign: true }),
-    ytd: fmtMoney(fund.inceptionPnl, { sign: true }),
+    ytd: fmtMoney(fund.ytdPnl, { sign: true }),
     share: `${fund.fundSharePct.toFixed(2)}%`,
   }));
 
@@ -104,7 +104,7 @@ export default function InvestorDashboard({ name, overview }) {
           <h1 className="page-title tracking-tight">Portfolio Summary</h1>
           <span className="self-start sm:self-auto text-xs text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
-            NAV as of {asOfLabel} · 19:00 SGT
+            NAV as of {asOfLabel} · {fmtTime(overview.asOfComputedAt)}
           </span>
         </div>
       </div>
