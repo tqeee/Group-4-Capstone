@@ -171,6 +171,48 @@ describe('computeFundLedger', () => {
     const { navRows } = computeFundLedger('fund-1', deals, flows)
     expect(navRows[1].tradeCount).toBe(1)
   })
+
+  it('defaults to no management fee when the rate is omitted', () => {
+    const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 100000)]
+    const deals = [deal('2024-01-02', 0, 0)]
+
+    const { navRows } = computeFundLedger('fund-1', deals, flows)
+    expect(navRows[1].pnl).toBe(0)
+    expect(navRows[1].closingBalance).toBe(100000)
+  })
+
+  it('accrues an annual management fee daily against the opening balance, even on a day with no trading', () => {
+    // 3.65% annual = 0.01%/day -> $10/day fee on a $100,000 opening balance.
+    const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 100000)]
+    const deals = [deal('2024-01-02', 0, 0)] // no trading P&L that day
+
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, 3.65)
+
+    const day2Nav = navRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
+    expect(day2Nav.pnl).toBe(-10)
+    expect(day2Nav.closingBalance).toBe(99990)
+
+    const day2Ledger = ledgerRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
+    expect(day2Ledger.pnl).toBe(-10) // sole investor bears the full fee
+    expect(day2Ledger.closingValue).toBe(99990)
+  })
+
+  it('nets the management fee against trading P&L, and splits it pro-rata across investors', () => {
+    const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 60000), flow('2024-01-01', 'B', 'DEPOSIT', 40000)]
+    const deals = [deal('2024-01-02', 1000, 1)] // $1000 trading gain
+
+    // 36.5% annual = 0.1%/day -> $100/day fee on the $100,000 opening balance.
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, 36.5)
+
+    const day2Nav = navRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
+    expect(day2Nav.pnl).toBe(900) // 1000 trading gain - 100 fee
+
+    const day2Rows = ledgerRows.filter(r => r.date.getTime() === day('2024-01-02').getTime())
+    const a = day2Rows.find(r => r.investorId === 'A')!
+    const b = day2Rows.find(r => r.investorId === 'B')!
+    expect(a.pnl).toBe(540) // 60% of the net 900
+    expect(b.pnl).toBe(360) // 40% of the net 900
+  })
 })
 
 describe('compoundReturn', () => {
