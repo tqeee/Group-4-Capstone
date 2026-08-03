@@ -1,11 +1,26 @@
 import { prisma } from '@/lib/db'
 import { compoundReturn } from '@/lib/ledger'
 import { getFundLabels } from '@/lib/fundLabels'
+import { fmtDate } from '@/lib/format'
 
 // Read models for the portal pages. Everything returned here is plain JSON
 // (numbers/strings/booleans) so it can cross the server->client boundary.
 
 const num = (d: unknown) => Number(d)
+
+// FundFlow display status. PENDING and AWAITING_PROOF both show under
+// "Pending Transaction" — from the investor's and ops' perspective there's
+// nothing to review yet either way, just something still in motion before
+// the transfer is confirmed. Callers that need to distinguish them (e.g. to
+// show the right action button) use the raw status alongside this label.
+const FLOW_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Pending Transaction',
+  AWAITING_PROOF: 'Pending Transaction',
+  PENDING_RECEIPT: 'Pending Receipt',
+  COMPLETED: 'Completed',
+  REJECTED: 'Rejected',
+}
+const flowStatusLabel = (status: string) => FLOW_STATUS_LABEL[status] ?? status
 
 // ---------------------------------------------------------------------------
 // Investor profile
@@ -31,11 +46,14 @@ export async function getInvestorByAuth(authUserId: string, email?: string | nul
 export type InvestorOverview = {
   hasData: boolean
   asOf: string | null // ISO date of latest ledger day
+  asOfComputedAt: string | null // when that day's row was actually last computed
   totalValue: number
   dayPnl: number
   dayPct: number
   mtdPnl: number
   mtdPct: number
+  ytdPnl: number
+  ytdPct: number
   inceptionPnl: number
   inceptionPct: number
   inceptionDate: string | null
@@ -53,6 +71,7 @@ export type InvestorOverview = {
     fundSharePct: number
     dayPnl: number
     mtdPnl: number
+    ytdPnl: number
     inceptionPnl: number
   }[]
 }
@@ -72,20 +91,21 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   ])
 
   const empty: InvestorOverview = {
-    hasData: false, asOf: null, totalValue: 0, dayPnl: 0, dayPct: 0, mtdPnl: 0,
-    mtdPct: 0, inceptionPnl: 0, inceptionPct: 0, inceptionDate: null,
+    hasData: false, asOf: null, asOfComputedAt: null, totalValue: 0, dayPnl: 0, dayPct: 0, mtdPnl: 0,
+    mtdPct: 0, ytdPnl: 0, ytdPct: 0, inceptionPnl: 0, inceptionPct: 0, inceptionDate: null,
     grossDeposits: num(deposits._sum.amount ?? 0), series: [], allocation: [],
   }
   if (rows.length === 0) return empty
 
   // Daily series (portfolio value across funds).
-  const byDay = new Map<number, { value: number; pnl: number; opening: number }>()
+  const byDay = new Map<number, { value: number; pnl: number; opening: number; updatedAt: Date }>()
   for (const r of rows) {
     const t = r.date.getTime()
-    const agg = byDay.get(t) ?? { value: 0, pnl: 0, opening: 0 }
+    const agg = byDay.get(t) ?? { value: 0, pnl: 0, opening: 0, updatedAt: r.updatedAt }
     agg.value += num(r.closingValue)
     agg.pnl += num(r.pnl)
     agg.opening += num(r.openingValue)
+    if (r.updatedAt > agg.updatedAt) agg.updatedAt = r.updatedAt
     byDay.set(t, agg)
   }
   const days = [...byDay.entries()].sort((a, b) => a[0] - b[0])
@@ -99,16 +119,22 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   const mtdPnl = mtdDays.reduce((s, [, d]) => s + d.pnl, 0)
   const mtdBase = mtdDays[0]?.[1].opening ?? 0
 
+  const yearStart = Date.UTC(lastDate.getUTCFullYear(), 0, 1)
+  const ytdDays = days.filter(([t]) => t >= yearStart)
+  const ytdPnl = ytdDays.reduce((s, [, d]) => s + d.pnl, 0)
+  const ytdBase = ytdDays[0]?.[1].opening ?? 0
+
   const inceptionPnl = days.reduce((s, [, d]) => s + d.pnl, 0)
   const grossDeposits = num(deposits._sum.amount ?? 0)
 
   // Latest per-fund breakdown.
   const latestRows = rows.filter(r => r.date.getTime() === lastT)
-  const perFund = new Map<string, { day: number; mtd: number; inception: number }>()
+  const perFund = new Map<string, { day: number; mtd: number; ytd: number; inception: number }>()
   for (const r of rows) {
-    const agg = perFund.get(r.fundId) ?? { day: 0, mtd: 0, inception: 0 }
+    const agg = perFund.get(r.fundId) ?? { day: 0, mtd: 0, ytd: 0, inception: 0 }
     const pnl = num(r.pnl)
     agg.inception += pnl
+    if (r.date.getTime() >= yearStart) agg.ytd += pnl
     if (r.date.getTime() >= monthStart) agg.mtd += pnl
     if (r.date.getTime() === lastT) agg.day += pnl
     perFund.set(r.fundId, agg)
@@ -125,17 +151,25 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     fundSharePct: num(r.closingSharePct) * 100,
     dayPnl: perFund.get(r.fundId)?.day ?? 0,
     mtdPnl: perFund.get(r.fundId)?.mtd ?? 0,
+    ytdPnl: perFund.get(r.fundId)?.ytd ?? 0,
     inceptionPnl: perFund.get(r.fundId)?.inception ?? 0,
   }))
 
   return {
     hasData: true,
     asOf: lastDate.toISOString(),
+    asOfComputedAt: last.updatedAt.toISOString(),
     totalValue: last.value,
     dayPnl: last.pnl,
     dayPct: last.opening > 0 ? (last.pnl / last.opening) * 100 : 0,
     mtdPnl,
-    mtdPct: mtdBase > 0 ? (mtdPnl / mtdBase) * 100 : 0,
+    // If the period's first day is also the investor's very first activity
+    // day, its opening balance is genuinely $0 (before that day's deposit) —
+    // fall back to gross deposits (same as inceptionPct) rather than showing
+    // a misleading 0% for exactly the investors this figure matters most for.
+    mtdPct: mtdBase > 0 ? (mtdPnl / mtdBase) * 100 : grossDeposits > 0 ? (mtdPnl / grossDeposits) * 100 : 0,
+    ytdPnl,
+    ytdPct: ytdBase > 0 ? (ytdPnl / ytdBase) * 100 : grossDeposits > 0 ? (ytdPnl / grossDeposits) * 100 : 0,
     inceptionPnl,
     // Investor-level %: total dollar PNL relative to gross deposits (money in).
     inceptionPct: grossDeposits > 0 ? (inceptionPnl / grossDeposits) * 100 : 0,
@@ -224,7 +258,7 @@ export type ActivityItem = {
   type: 'Deposit' | 'Withdrawal' | 'Daily P&L'
   fund: string
   amount: number
-  status: 'Completed' | 'Pending' | 'Approved' | 'Rejected'
+  status: 'Completed' | 'Pending Transaction' | 'Pending Receipt' | 'Rejected'
 }
 
 export async function getInvestorActivity(investorId: string): Promise<ActivityItem[]> {
@@ -244,7 +278,7 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
       type: (f.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal') as ActivityItem['type'],
       fund: labels.get(f.fundId)?.name ?? 'Fund',
       amount: f.type === 'DEPOSIT' ? num(f.amount) : -num(f.amount),
-      status: (f.status.charAt(0) + f.status.slice(1).toLowerCase()) as ActivityItem['status'],
+      status: flowStatusLabel(f.status) as ActivityItem['status'],
     })),
     ...ledger.map(r => ({
       id: `pnl-${r.id}`,
@@ -275,7 +309,9 @@ export async function getInvestorFlows(investorId: string) {
     fund: labels.get(f.fundId)?.name ?? 'Fund',
     requestDate: f.requestDate.toISOString(),
     processedDate: f.processedDate?.toISOString() ?? null,
-    status: f.status.charAt(0) + f.status.slice(1).toLowerCase(),
+    status: flowStatusLabel(f.status),
+    rawStatus: f.status,
+    proofOfTransfer: f.proofOfTransfer,
     note: f.note,
   }))
 }
@@ -313,7 +349,9 @@ export async function getFlowsForReview() {
     currency: f.currency,
     requestDate: f.requestDate.toISOString(),
     processedDate: f.processedDate?.toISOString() ?? null,
-    status: f.status.charAt(0) + f.status.slice(1).toLowerCase(),
+    status: flowStatusLabel(f.status),
+    rawStatus: f.status,
+    proofOfTransfer: f.proofOfTransfer,
     reviewedBy: f.reviewedBy,
     note: f.note,
   }))
@@ -395,6 +433,7 @@ export async function getFundTotals() {
       currency: fund.currency,
       inceptionDate: fund.inceptionDate.toISOString(),
       asOf: latest?.date.toISOString() ?? null,
+      asOfComputedAt: latest?.updatedAt.toISOString() ?? null,
       aum: latest ? num(latest.closingBalance) : 0,
       totalPnl: nav.reduce((s, d) => s + num(d.pnl), 0),
       returnPct:
@@ -402,4 +441,33 @@ export async function getFundTotals() {
     })
   }
   return totals
+}
+
+// Fund-level daily time series (Portfolio Manager performance charts). Signed
+// netFlows is split into deposits/withdrawals buckets purely to match the
+// shape the UI expects — only the net (deposits - withdrawals) is ever used
+// in calculations, and that always equals the original netFlows exactly.
+export type FundDailySeriesPoint = {
+  date: string // 'D Mon YYYY'
+  beginningValue: number
+  dailyPnL: number
+  deposits: number
+  withdrawals: number
+}
+
+export async function getFundDailySeries(fundId: string): Promise<FundDailySeriesPoint[]> {
+  const nav = await prisma.fundDailyNav.findMany({
+    where: { fundId },
+    orderBy: { date: 'asc' },
+  })
+  return nav.map(d => {
+    const netFlows = num(d.netFlows)
+    return {
+      date: fmtDate(d.date),
+      beginningValue: num(d.openingBalance),
+      dailyPnL: num(d.pnl),
+      deposits: netFlows > 0 ? netFlows : 0,
+      withdrawals: netFlows < 0 ? -netFlows : 0,
+    }
+  })
 }

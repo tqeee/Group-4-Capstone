@@ -2,7 +2,7 @@
 // Roles are stored in Supabase `app_metadata` (server-controlled, present in the
 // JWT claims), never in `user_metadata` (user-editable).
 
-export const ROLES = ['investor', 'operations', 'admin'] as const
+export const ROLES = ['investor', 'operations', 'admin', 'portfolio-manager'] as const
 export type Role = (typeof ROLES)[number]
 
 // Users created before roles existed have no role claim; treat them as investors.
@@ -12,6 +12,7 @@ export const ROLE_HOME: Record<Role, string> = {
   investor: '/investor',
   operations: '/operations',
   admin: '/admin',
+  'portfolio-manager': '/portfolio-manager',
 }
 
 // Route groups like (admin) don't appear in the URL, so every section is a
@@ -37,6 +38,11 @@ const ROUTE_ROLES: Record<string, Role> = {
   '/funds': 'investor',
   '/reports': 'investor',
   '/request-transaction': 'investor',
+  // (portfolio-manager)
+  '/portfolio-manager': 'portfolio-manager',
+  '/performance': 'portfolio-manager',
+  '/port-investors': 'portfolio-manager',
+  '/port-transactions': 'portfolio-manager',
   // API routes (the proxy returns 401/403 JSON for these instead of redirecting)
   '/api/statements': 'investor',
 }

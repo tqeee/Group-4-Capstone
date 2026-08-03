@@ -1,4 +1,4 @@
-const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'MTD', 'SINCE INCEPTION', 'TOTAL P&L', 'FUND SHARE'];
+const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'MTD', 'SINCE INCEPTION', 'YTD', 'FUND SHARE'];
 
 export default function HoldingsTable({ data = [], footer = null }) {
   return (

@@ -1,5 +1,7 @@
 const statusStyles = {
   Pending: 'bg-amber-100 text-amber-800 ring-amber-200 hover:bg-amber-200 hover:shadow-amber-100',
+  'Pending Transaction': 'bg-amber-100 text-amber-800 ring-amber-200 hover:bg-amber-200 hover:shadow-amber-100',
+  'Pending Receipt': 'bg-sky-100 text-sky-800 ring-sky-200 hover:bg-sky-200 hover:shadow-sky-100',
   Approved: 'bg-sky-100 text-sky-800 ring-sky-200 hover:bg-sky-200 hover:shadow-sky-100',
   Completed: 'bg-emerald-100 text-emerald-800 ring-emerald-200 hover:bg-emerald-200 hover:shadow-emerald-100',
   Rejected: 'bg-red-100 text-red-700 ring-red-200 hover:bg-red-200 hover:shadow-red-100',

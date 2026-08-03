@@ -100,3 +100,59 @@ export async function submitFlowRequest(
     message: `Your ${typeInput} request for ${fmtMoney(amount)} has been submitted for review.`,
   }
 }
+
+export type SubmitProofState =
+  | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+  | undefined
+
+// Investor submits a reference for their bank transfer (deposits only, once
+// operations has approved and emailed bank details) — moves the request to
+// PENDING_RECEIPT for operations to confirm.
+export async function submitProofOfTransfer(
+  _prevState: SubmitProofState,
+  formData: FormData
+): Promise<SubmitProofState> {
+  const supabase = await createClient()
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
+  if (!claims?.sub) {
+    return { status: 'error', message: 'Your session has expired. Please sign in again.' }
+  }
+
+  const investor = await getInvestorByAuth(claims.sub, claims.email ?? null)
+  if (!investor) {
+    return { status: 'error', message: 'No investor profile found for this account.' }
+  }
+
+  const flowId = formData.get('flowId')
+  const proof = formData.get('proofOfTransfer')
+
+  if (typeof flowId !== 'string' || !flowId) {
+    return { status: 'error', message: 'Invalid request.' }
+  }
+  if (typeof proof !== 'string' || !proof.trim()) {
+    return { status: 'error', message: 'Please enter a reference for your transfer.' }
+  }
+
+  const flow = await prisma.fundFlow.findUnique({ where: { id: flowId } })
+  if (!flow || flow.investorId !== investor.id) {
+    return { status: 'error', message: 'Request not found.' }
+  }
+  if (flow.status !== 'AWAITING_PROOF') {
+    return { status: 'error', message: 'This request is not awaiting proof of transfer.' }
+  }
+
+  await prisma.fundFlow.update({
+    where: { id: flowId },
+    data: { status: 'PENDING_RECEIPT', proofOfTransfer: proof.trim() },
+  })
+  await audit('FLOW_PROOF_SUBMITTED', { actor: investor.email, detail: `${flowId}: ${proof.trim()}` })
+
+  revalidatePath('/request-transaction')
+  revalidatePath('/ops-transactions')
+  return {
+    status: 'success',
+    message: 'Proof of transfer submitted. Operations will confirm receipt shortly.',
+  }
+}

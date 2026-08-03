@@ -6,8 +6,8 @@ const filters = ['All', 'Daily P&L', 'Deposit', 'Withdrawal'];
 
 const statusStyle = {
   Completed: 'bg-green-50 text-green-600',
-  Pending: 'bg-yellow-50 text-yellow-600',
-  Approved: 'bg-blue-50 text-blue-600',
+  'Pending Transaction': 'bg-yellow-50 text-yellow-600',
+  'Pending Receipt': 'bg-blue-50 text-blue-600',
   Rejected: 'bg-red-50 text-red-500',
 };
 

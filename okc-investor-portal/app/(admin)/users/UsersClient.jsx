@@ -12,12 +12,14 @@ const roleStyle = {
   investor: 'bg-gray-100 text-gray-600',
   operations: 'bg-green-50 text-green-600',
   admin: 'bg-blue-50 text-blue-600',
+  'portfolio-manager': 'bg-purple-50 text-purple-600',
 };
 
 const roleLabel = {
   investor: 'Investor',
   operations: 'Operations',
   admin: 'Admin',
+  'portfolio-manager': 'Portfolio Manager',
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -70,7 +72,7 @@ export default function UsersClient({ users, loadError }) {
   );
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
@@ -244,6 +246,7 @@ export default function UsersClient({ users, loadError }) {
                   <option value="investor">Investor</option>
                   <option value="operations">Operations</option>
                   <option value="admin">Admin</option>
+                  <option value="portfolio-manager">Portfolio Manager</option>
                 </select>
               </div>
               <p className="text-xs text-gray-400 leading-normal">
