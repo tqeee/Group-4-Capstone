@@ -9,7 +9,10 @@ import { normalizeRole, ROLE_HOME } from '@/lib/auth/roles'
 import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
 import { audit } from '@/lib/audit'
 
-export type ChangePasswordState = { error: string } | undefined
+// `needsMfa` tells the client to drop back to the TOTP challenge: the session
+// lost (or never had) AAL2, which Supabase requires to change the password of
+// an MFA-enabled account.
+export type ChangePasswordState = { error: string; needsMfa?: boolean } | undefined
 
 const MIN_PASSWORD_LENGTH = 12
 
@@ -47,6 +50,18 @@ export async function changePassword(
   const { error: updateError } = await supabase.auth.updateUser({ password })
 
   if (updateError) {
+    // Supabase rejects a password change on an MFA-enabled account unless the
+    // session is AAL2 (401 insufficient_aal). A recovery link only ever
+    // produces AAL1, so the page challenges for TOTP first — this is the
+    // fallback for a session that lost AAL2 in between. Never surface the raw
+    // "AAL2 session is required..." string; it means nothing to an investor.
+    if (updateError.code === 'insufficient_aal' || updateError.status === 401) {
+      return {
+        error: 'Please re-enter the code from your authenticator app to confirm this change.',
+        needsMfa: true,
+      }
+    }
+
     return {
       error:
         updateError.code === 'same_password'
