@@ -52,28 +52,55 @@ export async function GET(request: NextRequest) {
 <meta name="robots" content="noindex">
 <title>Reset your password &middot; OKC</title>
 <style>
-  :root { color-scheme: light dark; }
+  /* This page is a standalone HTML document served by a route handler, so it
+     gets neither globals.css nor Tailwind. The rules below are hand-ported from
+     the portal's own tokens so it matches /mfa, which is the very next page in
+     this flow: .mfa-card, .mfa-button-primary, the #fbfcff auth background and
+     the Arial stack globals.css sets on body. Keep the two in step.
+     Colours are declared twice — hex first, then the exact Tailwind v4 oklch —
+     so an older in-app email browser still gets the right shade. */
+  :root { color-scheme: light; }   /* the portal is light-only, see globals.css */
   * { box-sizing: border-box; }
-  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#f8fafc; color:#0f172a; }
-  .card { background:#fff; max-width:420px; width:calc(100% - 32px); padding:32px; border-radius:16px;
-    box-shadow:0 10px 30px rgba(2,6,23,.08); border:1px solid #e2e8f0; text-align:center; }
-  .brand { font-weight:700; letter-spacing:.03em; color:#2563eb; margin-bottom:16px; }
-  h1 { font-size:20px; margin:0 0 8px; }
-  p { color:#475569; font-size:14px; line-height:1.5; margin:0 0 24px; }
-  button { width:100%; padding:12px 16px; font-size:15px; font-weight:600; color:#fff;
-    background:#2563eb; border:0; border-radius:10px; cursor:pointer; }
-  button:hover { background:#1d4ed8; }
-  @media (prefers-color-scheme: dark){
-    body{ background:#0f172a; color:#e2e8f0 } .card{ background:#1e293b; border-color:#334155 } p{ color:#94a3b8 }
+  body {
+    margin: 0; min-height: 100vh; padding: 2.5rem 1rem;
+    display: flex; align-items: center; justify-content: center;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #fbfcff;
+    color: #0f172a; color: oklch(20.8% 0.042 265.755);          /* slate-900 */
   }
+  .card {                                                        /* = .mfa-card */
+    width: 100%; max-width: 24rem; padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border: 1px solid oklch(92.8% 0.006 264.531);                /* gray-200 */
+    border-radius: 1rem;                                         /* rounded-2xl */
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1);
+  }
+  @media (min-width: 640px) { .card { padding: 1.75rem; } }      /* sm:p-7 */
+  .brand {
+    margin: 0 0 1.25rem; font-size: 1.25rem; font-weight: 800;
+    letter-spacing: -0.025em; color: #000;
+  }
+  h1 { margin: 0 0 0.375rem; font-size: 1.125rem; font-weight: 600; }
+  .lede {
+    margin: 0 0 1.5rem; font-size: 0.875rem; line-height: 1.625;
+    color: #64748b; color: oklch(55.4% 0.046 257.417);           /* slate-500 */
+  }
+  button {                                             /* = .mfa-button-primary */
+    display: block; width: 100%; padding: 0.625rem 0;
+    border: 0; border-radius: 0.75rem;                           /* rounded-xl */
+    background: #1554ff;
+    font-family: inherit; font-size: 0.875rem; font-weight: 600; color: #fff;
+    cursor: pointer; transition: background-color .15s ease;
+  }
+  button:hover { background: #0047ff; }
 </style>
 </head>
 <body>
   <form class="card" method="POST" action="/auth/confirm">
-    <div class="brand">OKC</div>
+    <p class="brand">OKC</p>
     <h1>Reset your password</h1>
-    <p>For your security, confirm you requested this password reset. Click below to continue.</p>
+    <p class="lede">For your security, confirm you requested this password reset. Click below to continue.</p>
     <input type="hidden" name="token_hash" value="${escapeHtml(tokenHash)}">
     <input type="hidden" name="type" value="${escapeHtml(type)}">
     <input type="hidden" name="code" value="${escapeHtml(code)}">
