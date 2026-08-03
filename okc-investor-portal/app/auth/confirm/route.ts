@@ -3,6 +3,7 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { getSiteOrigin } from '@/lib/site-url'
 import { RECOVERY_COOKIE, RECOVERY_COOKIE_MAX_AGE } from '@/lib/auth/recovery'
+import { IDLE_COOKIE } from '@/lib/auth/idle'
 import { audit } from '@/lib/audit'
 
 // Supabase auth email links (recovery, invite, email change) carry a SINGLE-USE
@@ -135,6 +136,11 @@ export async function POST(request: NextRequest) {
   // this one page through — see lib/auth/recovery.ts.
   const ok = (isRecovery: boolean) => {
     const response = NextResponse.redirect(new URL(next, origin), 303)
+    // Verifying a link mints a NEW session (possibly for a different user), so
+    // the previous session's idle timestamp must not carry over — otherwise a
+    // stale one sends the user straight back out. Same reasoning as the login
+    // action; a missing cookie just restarts the clock.
+    response.cookies.delete(IDLE_COOKIE)
     if (isRecovery) {
       response.cookies.set(RECOVERY_COOKIE, '1', {
         httpOnly: true,
