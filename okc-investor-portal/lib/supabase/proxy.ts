@@ -3,6 +3,12 @@ import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { normalizeRole, requiredRoleForPath, ROLE_HOME } from '@/lib/auth/roles'
 import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
+import {
+  IDLE_COOKIE,
+  IDLE_TIMEOUT_MS,
+  idleCookieOptions,
+  idleMillisFrom,
+} from '@/lib/auth/idle'
 import { siteOriginFromHeaders } from '@/lib/site-url'
 
 export async function updateSession(request: NextRequest) {
@@ -73,9 +79,13 @@ export async function updateSession(request: NextRequest) {
   // server's internal origin/port, not the public one. The shared helper is
   // env-first (NEXT_PUBLIC_SITE_URL, which must be set in production) and
   // falls back to the forwarded/host headers otherwise.
-  const redirectTo = (to: string) => {
-    const url = new URL(to, siteOriginFromHeaders(request.headers, request.nextUrl.origin))
-    url.search = request.nextUrl.search
+  const siteOrigin = siteOriginFromHeaders(request.headers, request.nextUrl.origin)
+
+  // `search` defaults to carrying the current query string across the redirect
+  // (so e.g. ?search= survives a role bounce); pass it explicitly to replace it.
+  const redirectTo = (to: string, search?: string) => {
+    const url = new URL(to, siteOrigin)
+    url.search = search ?? request.nextUrl.search
     const response = NextResponse.redirect(url)
     // getClaims()/getUser() above may have refreshed the session; those cookies
     // live on supabaseResponse, and a fresh redirect response would drop them.
@@ -99,6 +109,31 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
+    // Idle timeout (§3.1). Enforced here rather than by Supabase's own
+    // "Inactivity timeout" setting, which is Pro-only and lazily applied — see
+    // lib/auth/idle.ts. This is the control; the client countdown is only the
+    // warning UI over it, so a closed lid or a replayed cookie still expires.
+    if (idleMillisFrom(request.cookies.get(IDLE_COOKIE)?.value) > IDLE_TIMEOUT_MS) {
+      // scope 'local' revokes THIS session only — an idle desktop tab must not
+      // sign the same user out of their phone.
+      await supabase.auth.signOut({ scope: 'local' })
+
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+      }
+      const response = redirectTo('/login', '?timeout=1')
+      response.cookies.delete(IDLE_COOKIE)
+      return response
+    }
+
+    // Stamp the clock forward. Done before the gates below so the redirects
+    // they issue carry the fresh timestamp too.
+    supabaseResponse.cookies.set(
+      IDLE_COOKIE,
+      String(Date.now()),
+      idleCookieOptions(siteOrigin.startsWith('https://'))
+    )
+
     const role = normalizeRole(user.app_metadata?.role)
     const mustChangePassword = user.app_metadata?.must_change_password === true
 

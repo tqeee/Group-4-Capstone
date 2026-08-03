@@ -99,6 +99,10 @@ body {
     @apply bg-red-50 text-red-600;
   }
 
+  .status-info {
+    @apply bg-amber-50 text-amber-700;
+  }
+
   /* ---- MFA pages (compact card, fixed sizing — not viewport-scaled) ---- */
 
   .mfa-card {

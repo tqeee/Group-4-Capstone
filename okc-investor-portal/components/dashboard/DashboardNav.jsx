@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signout } from '@/app/(auth)/login/actions';
+import IdleTimeout from './IdleTimeout';
 
 // Shared shell for the investor, operations and admin sections: a sticky
 // top bar — brand/search/profile row with tab links below on desktop, a
@@ -201,6 +202,10 @@ export default function DashboardNav({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Every signed-in section renders this shell, so one mount covers all
+          four role groups. Enforcement is in the proxy either way. */}
+      <IdleTimeout />
+
       <header className="sticky top-0 z-30 border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-8">
           {/* ── Brand / search / profile row ────────────────────────── */}
