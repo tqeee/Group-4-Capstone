@@ -47,38 +47,35 @@ export default function MfaChallengePage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#fbfcff] px-6">
-      <section className="w-full max-w-lg rounded-3xl border border-gray-100 bg-white p-10 shadow-xl">
-        <div className="mb-8 flex items-end gap-3">
-          <span className="text-4xl font-extrabold tracking-tight text-black">OKC</span>
-          <span className="pb-1 text-lg font-light tracking-[0.4em] text-blue-500">PARTNERS</span>
-        </div>
+    <main className="flex min-h-screen items-center justify-center bg-[#fbfcff] px-4 py-10">
+      <section className="mfa-card">
+        <p className="mb-5 text-xl font-extrabold tracking-tight text-black">OKC</p>
 
         {noFactor ? (
           <>
-            <h1 className="mb-3 text-2xl font-bold text-slate-900">Two-factor authentication</h1>
-            <p className="mb-8 text-sm leading-relaxed text-slate-500">
+            <h1 className="mb-1.5 text-lg font-semibold text-slate-900">
+              Two-factor authentication
+            </h1>
+            <p className="mb-6 text-sm leading-relaxed text-slate-500">
               Your account doesn&apos;t have an authenticator app enrolled yet. Set one up to
               protect your account, or continue to your dashboard.
             </p>
-            <div className="flex flex-col gap-3">
-              <Link href="/mfa/setup" className="auth-button-primary block text-center">
+            <div className="flex flex-col gap-2.5">
+              <Link href="/mfa/setup" className="mfa-button-primary">
                 Set up authenticator
               </Link>
-              <Link
-                href="/"
-                className="block rounded-2xl border border-gray-200 py-3 text-center text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-              >
+              <Link href="/" className="mfa-button-secondary">
                 Continue without MFA
               </Link>
             </div>
           </>
         ) : (
           <>
-            <h1 className="mb-3 text-2xl font-bold text-slate-900">Enter verification code</h1>
-            <p className="mb-8 text-sm leading-relaxed text-slate-500">
-              Open your authenticator app and enter the 6-digit code for your OKC
-              account.
+            <h1 className="mb-1.5 text-lg font-semibold text-slate-900">
+              Enter verification code
+            </h1>
+            <p className="mb-5 text-sm leading-relaxed text-slate-500">
+              Open your authenticator app and enter the 6-digit code for your OKC account.
             </p>
 
             <form onSubmit={verify}>
@@ -91,17 +88,15 @@ export default function MfaChallengePage() {
                 value={code}
                 onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="mb-4 w-full rounded-2xl border border-slate-300 px-6 py-4 text-center text-3xl font-semibold tracking-[0.5em] text-slate-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                className="mfa-code-input mb-3"
               />
 
-              {error && (
-                <p className="auth-status-message status-error mb-4">{error}</p>
-              )}
+              {error && <p className="mfa-note status-error mb-3">{error}</p>}
 
               <button
                 type="submit"
                 disabled={verifying || !factorId || code.length < 6}
-                className="auth-button-primary"
+                className="mfa-button-primary"
               >
                 {verifying ? 'Verifying…' : 'Verify and continue'}
               </button>
@@ -109,7 +104,7 @@ export default function MfaChallengePage() {
           </>
         )}
 
-        <form action={signout} className="mt-8 text-center">
+        <form action={signout} className="mt-5 border-t border-gray-100 pt-4 text-center">
           <button type="submit" className="text-sm font-medium text-[#1f6bff] hover:underline">
             Sign out and use a different account
           </button>

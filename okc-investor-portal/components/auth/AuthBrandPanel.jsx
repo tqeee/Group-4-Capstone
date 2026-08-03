@@ -23,10 +23,6 @@ export default function AuthBrandPanel() {
             OKC
           </span>
 
-          <span className="text-[clamp(1.125rem,1.8vw,2.25rem)] font-medium leading-none tracking-[0.28em] text-[#6ea0ff]">
-            PARTNERS
-          </span>
-
         </div>
 
         {/* Heading */}
