@@ -213,9 +213,8 @@ export default function PerformanceClient({ funds, seriesByFund }) {
     <div>
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className="text-sm text-gray-500">Portfolio Manager</p>
-          <h1 className="mt-1 text-3xl font-bold text-gray-900">Performance</h1>
-          <p className="mt-2 text-sm text-gray-500">Detailed fund analytics for NAV, daily P&L, cumulative P&L, and fund return.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Performance</h1>
+          <p className="text-gray-400 text-sm mt-1">Detailed fund analytics for NAV, daily P&L, cumulative P&L, and fund return.</p>
         </div>
       </div>
 

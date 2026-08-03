@@ -174,8 +174,9 @@ export default function PortfolioManagerDashboardClient({ funds, seriesByFund, p
     <div className="xl:relative xl:left-1/2 xl:w-[calc(100vw-4rem)] xl:max-w-[1600px] xl:-translate-x-1/2">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Portfolio Dashboard</h1>
-          <p className="mt-2 text-sm text-gray-500">Track your portfolio performance and daily P&L.</p>
+          <p className="text-gray-500 text-sm mb-1">Welcome back, Portfolio Manager!</p>
+          <h1 className="text-3xl font-bold text-gray-900">Portfolio Dashboard</h1>
+          <p className="text-gray-400 text-sm mt-1">Track your portfolio performance and daily P&L.</p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Fund</label>

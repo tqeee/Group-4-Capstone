@@ -17,14 +17,15 @@ export default async function PortfolioManagerDashboardPage() {
   );
   const seriesByFund = Object.fromEntries(seriesEntries);
 
+  const isOpen = f => f.status === 'Pending Transaction' || f.status === 'Pending Receipt';
   const pendingActions = [
     {
       label: 'Deposit Requests Pending',
-      count: flows.filter(f => f.status === 'Pending' && f.type === 'Deposit').length,
+      count: flows.filter(f => isOpen(f) && f.type === 'Deposit').length,
     },
     {
       label: 'Withdrawal Requests Pending',
-      count: flows.filter(f => f.status === 'Pending' && f.type === 'Withdrawal').length,
+      count: flows.filter(f => isOpen(f) && f.type === 'Withdrawal').length,
     },
   ];
 

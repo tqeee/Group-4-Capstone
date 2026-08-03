@@ -67,28 +67,45 @@ enum FlowType {
   WITHDRAWAL
 }
 
+// Bank-transfer confirmation workflow (deposits): PENDING -> ops approves,
+// emails bank details -> AWAITING_PROOF -> investor submits proof of
+// transfer -> PENDING_RECEIPT -> ops confirms receipt -> COMPLETED, which is
+// the only point money is applied to the fund ledger. Withdrawals skip the
+// transfer dance entirely: PENDING -> ops approves and pays out -> COMPLETED
+// directly (OKC is the one sending money, so there's nothing for the
+// investor to prove). REJECTED is reachable from any non-terminal status.
+//
+// The old APPROVED status (ledger already applied, about to be swept to
+// COMPLETED on next rebuild) is retired — Postgres can't drop an enum value
+// without recreating the type, so it stays defined in the DB but unused.
 enum FlowStatus {
   PENDING
-  APPROVED
+  AWAITING_PROOF
+  PENDING_RECEIPT
   REJECTED
   COMPLETED
 }
 
 // 5.2 Fund flows: deposit / withdrawal requests. Request tracking is kept
 // separate from actual fund movement: a request only affects the ledger once
-// operations approves it and a processed date is set.
+// operations confirms receipt (deposits) or pays out (withdrawals) and a
+// processed date is set.
 model FundFlow {
-  id            String     @id @default(cuid()) // request id
-  investorId    String
-  fundId        String
-  type          FlowType
-  amount        Decimal    @db.Decimal(18, 2)
-  currency      String     @default("SGD")
-  status        FlowStatus @default(PENDING)
-  requestDate   DateTime   @default(now())
-  processedDate DateTime?
-  reviewedBy    String? // email of the ops user who actioned it
-  note          String?
+  id              String     @id @default(cuid()) // request id
+  investorId      String
+  fundId          String
+  type            FlowType
+  amount          Decimal    @db.Decimal(18, 2)
+  currency        String     @default("SGD")
+  status          FlowStatus @default(PENDING)
+  requestDate     DateTime   @default(now())
+  processedDate   DateTime?
+  reviewedBy      String? // email of the ops user who actioned it
+  note            String?
+  // Investor-submitted reference for their bank transfer (deposits only) —
+  // e.g. a bank transaction ID or note — for ops to check before confirming
+  // receipt. Free text, not a file upload.
+  proofOfTransfer String?
 
   investor Investor @relation(fields: [investorId], references: [id])
   fund     Fund     @relation(fields: [fundId], references: [id])

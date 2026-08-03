@@ -40,9 +40,8 @@ export default function FundsClient({ funds }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-gray-500">Operations</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950">Funds</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <h1 className="text-3xl font-bold text-gray-900">Funds</h1>
+          <p className="text-gray-400 text-sm mt-1">
             Manage the fund products investors can deposit into.
           </p>
         </div>
@@ -70,7 +69,7 @@ export default function FundsClient({ funds }) {
             <p
               className={`mt-2 text-2xl font-bold ${
                 card.signed === undefined
-                  ? 'text-gray-950'
+                  ? 'text-gray-900'
                   : card.signed >= 0
                     ? 'text-green-600'
                     : 'text-red-500'
@@ -85,7 +84,7 @@ export default function FundsClient({ funds }) {
       {/* Fund list */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Fund Directory</p>
-        <h2 className="mt-2 text-lg font-bold text-gray-950">Products offered to investors</h2>
+        <h2 className="mt-2 text-lg font-bold text-gray-900">Products offered to investors</h2>
 
         <div className="mt-5 grid gap-3">
           {funds.map(fund => (
@@ -99,7 +98,7 @@ export default function FundsClient({ funds }) {
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-gray-950">{fund.name}</p>
+                    <p className="font-semibold text-gray-900">{fund.name}</p>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${riskStyle[fund.riskLevel] ?? 'bg-gray-100 text-gray-600'}`}>
                       {fund.riskLevel} risk
                     </span>
@@ -113,7 +112,7 @@ export default function FundsClient({ funds }) {
               <div className="flex items-center gap-8">
                 <div className="text-right">
                   <p className="text-xs text-gray-400">AUM ({fund.currency})</p>
-                  <p className="text-sm font-bold text-gray-950">{fmtMoney(fund.aum)}</p>
+                  <p className="text-sm font-bold text-gray-900">{fmtMoney(fund.aum)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Total P&L</p>

@@ -10,16 +10,18 @@ export const dynamic = 'force-dynamic'
 export default async function PortfolioManagerTransactionsPage() {
   const flows = await getFlowsForReview()
 
-  const pending = flows.filter(f => f.status === 'Pending').length
-  const approvedDeposits = flows
-    .filter(f => f.type === 'Deposit' && (f.status === 'Approved' || f.status === 'Completed'))
+  const pending = flows.filter(
+    f => f.status === 'Pending Transaction' || f.status === 'Pending Receipt'
+  ).length
+  const completedDeposits = flows
+    .filter(f => f.type === 'Deposit' && f.status === 'Completed')
     .reduce((s, f) => s + f.amount, 0)
-  const approvedWithdrawals = flows
-    .filter(f => f.type === 'Withdrawal' && (f.status === 'Approved' || f.status === 'Completed'))
+  const completedWithdrawals = flows
+    .filter(f => f.type === 'Withdrawal' && f.status === 'Completed')
     .reduce((s, f) => s + f.amount, 0)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
         <p className="text-gray-400 text-sm mt-1">
@@ -31,8 +33,8 @@ export default async function PortfolioManagerTransactionsPage() {
         {[
           { label: 'PENDING APPROVAL', value: String(pending), red: pending > 0 },
           { label: 'TOTAL REQUESTS', value: String(flows.length), red: false },
-          { label: 'APPROVED DEPOSITS', value: fmtMoney(approvedDeposits, { currency: 'SGD ' }), red: false },
-          { label: 'APPROVED WITHDRAWALS', value: fmtMoney(approvedWithdrawals, { currency: 'SGD ' }), red: false },
+          { label: 'COMPLETED DEPOSITS', value: fmtMoney(completedDeposits, { currency: 'SGD ' }), red: false },
+          { label: 'COMPLETED WITHDRAWALS', value: fmtMoney(completedWithdrawals, { currency: 'SGD ' }), red: false },
         ].map((s, i) => (
           <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 min-w-0">
             <p className="text-xs text-gray-400 font-medium tracking-wide mb-2 truncate">{s.label}</p>

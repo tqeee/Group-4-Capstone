@@ -7,7 +7,7 @@ export default function InvestorProfileModal({ investor, onClose }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-700">Investor Profile</p>
-            <h2 className="mt-2 text-xl font-bold text-gray-950">Account Information</h2>
+            <h2 className="mt-2 text-xl font-bold text-gray-900">Account Information</h2>
           </div>
           <button
             className="text-2xl leading-none text-gray-400 transition hover:text-gray-700"
@@ -23,7 +23,7 @@ export default function InvestorProfileModal({ investor, onClose }) {
             {getInitials(investor.name)}
           </div>
           <div>
-            <p className="font-bold text-gray-950">{investor.name}</p>
+            <p className="font-bold text-gray-900">{investor.name}</p>
             <p className="mt-1 text-sm text-gray-500">{investor.id}</p>
           </div>
         </div>

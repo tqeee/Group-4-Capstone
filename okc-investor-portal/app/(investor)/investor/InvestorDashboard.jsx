@@ -101,7 +101,7 @@ export default function InvestorDashboard({ name, overview }) {
       <div>
         <p className="text-gray-500 text-sm mb-1">Welcome back, <b>{name}</b>!</p>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h1 className="page-title tracking-tight">Portfolio Summary</h1>
+          <h1 className="page-title">Portfolio Summary</h1>
           <span className="self-start sm:self-auto text-xs text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
             NAV as of {asOfLabel} · {fmtTime(overview.asOfComputedAt)}
