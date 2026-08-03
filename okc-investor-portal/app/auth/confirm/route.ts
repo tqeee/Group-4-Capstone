@@ -1,35 +1,150 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { getSiteOrigin } from '@/lib/site-url'
+import { RECOVERY_COOKIE, RECOVERY_COOKIE_MAX_AGE } from '@/lib/auth/recovery'
 import { audit } from '@/lib/audit'
 
-// Exchanges the token in a Supabase auth email link for a session, then
-// forwards the user (password recovery lands on /change-password). Supports
-// both link styles so it works regardless of the project's email template:
-//  - token_hash + type  — the template Supabase recommends for SSR apps
-//    ({{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery)
-//  - code               — the default {{ .ConfirmationURL }} template, which
-//    verifies on Supabase's side and redirects here with a PKCE code
-export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl
-  const tokenHash = searchParams.get('token_hash')
-  const type = searchParams.get('type') as EmailOtpType | null
-  const code = searchParams.get('code')
+// Supabase auth email links (recovery, invite, email change) carry a SINGLE-USE
+// token. Email security scanners — notably Microsoft 365 / Outlook "Safe Links"
+// — fetch every link in an email to check it, and a plain GET that verifies the
+// token would let the scanner CONSUME it before the human clicks, leaving the
+// real user with "Email link is invalid or has expired".
+//
+// So GET does NOT verify: it renders a tiny interstitial with a Continue button.
+// Scanners fetch the page but don't press buttons, so the token survives. The
+// token is only spent on the POST below, triggered by a real click.
 
+function safeNext(raw: string | null | undefined): string {
+  const v = raw ?? '/change-password'
   // Only same-origin relative paths — prevents open redirects via ?next=.
-  const rawNext = searchParams.get('next') ?? '/change-password'
-  const next =
-    rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/change-password'
+  // Backslashes are rejected too: browsers normalise '/\evil.com' to '//evil.com',
+  // which would otherwise slip past the '//' check as a protocol-relative URL.
+  return v.startsWith('/') && !v.startsWith('//') && !v.includes('\\')
+    ? v
+    : '/change-password'
+}
 
-  const redirectTo = (path: string, params?: Record<string, string>) => {
-    const url = request.nextUrl.clone()
-    const [pathname, search] = path.split('?')
-    url.pathname = pathname
-    url.search = search ? `?${search}` : ''
-    for (const [key, value] of Object.entries(params ?? {})) {
-      url.searchParams.set(key, value)
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!
+  )
+}
+
+export async function GET(request: NextRequest) {
+  const sp = request.nextUrl.searchParams
+  const tokenHash = sp.get('token_hash') ?? ''
+  const type = sp.get('type') ?? ''
+  const code = sp.get('code') ?? ''
+  const next = safeNext(sp.get('next'))
+
+  // No usable token (stray visit, or the link's own error fragment).
+  if (!(tokenHash && type) && !code) {
+    const origin = await getSiteOrigin()
+    return NextResponse.redirect(new URL('/forgot-password?error=link', origin), 303)
+  }
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Reset your password &middot; OKC</title>
+<style>
+  /* This page is a standalone HTML document served by a route handler, so it
+     gets neither globals.css nor Tailwind. The rules below are hand-ported from
+     the portal's own tokens so it matches /mfa, which is the very next page in
+     this flow: .mfa-card, .mfa-button-primary, the #fbfcff auth background and
+     the Arial stack globals.css sets on body. Keep the two in step.
+     Colours are declared twice — hex first, then the exact Tailwind v4 oklch —
+     so an older in-app email browser still gets the right shade. */
+  :root { color-scheme: light; }   /* the portal is light-only, see globals.css */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 2.5rem 1rem;
+    display: flex; align-items: center; justify-content: center;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #fbfcff;
+    color: #0f172a; color: oklch(20.8% 0.042 265.755);          /* slate-900 */
+  }
+  .card {                                                        /* = .mfa-card */
+    width: 100%; max-width: 24rem; padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border: 1px solid oklch(92.8% 0.006 264.531);                /* gray-200 */
+    border-radius: 1rem;                                         /* rounded-2xl */
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1);
+  }
+  @media (min-width: 640px) { .card { padding: 1.75rem; } }      /* sm:p-7 */
+  .brand {
+    margin: 0 0 1.25rem; font-size: 1.25rem; font-weight: 800;
+    letter-spacing: -0.025em; color: #000;
+  }
+  h1 { margin: 0 0 0.375rem; font-size: 1.125rem; font-weight: 600; }
+  .lede {
+    margin: 0 0 1.5rem; font-size: 0.875rem; line-height: 1.625;
+    color: #64748b; color: oklch(55.4% 0.046 257.417);           /* slate-500 */
+  }
+  button {                                             /* = .mfa-button-primary */
+    display: block; width: 100%; padding: 0.625rem 0;
+    border: 0; border-radius: 0.75rem;                           /* rounded-xl */
+    background: #1554ff;
+    font-family: inherit; font-size: 0.875rem; font-weight: 600; color: #fff;
+    cursor: pointer; transition: background-color .15s ease;
+  }
+  button:hover { background: #0047ff; }
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/auth/confirm">
+    <p class="brand">OKC</p>
+    <h1>Reset your password</h1>
+    <p class="lede">For your security, confirm you requested this password reset. Click below to continue.</p>
+    <input type="hidden" name="token_hash" value="${escapeHtml(tokenHash)}">
+    <input type="hidden" name="type" value="${escapeHtml(type)}">
+    <input type="hidden" name="code" value="${escapeHtml(code)}">
+    <input type="hidden" name="next" value="${escapeHtml(next)}">
+    <button type="submit">Continue</button>
+  </form>
+</body>
+</html>`
+
+  return new NextResponse(html, {
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  })
+}
+
+export async function POST(request: NextRequest) {
+  const form = await request.formData()
+  const tokenHash = String(form.get('token_hash') ?? '')
+  const type = String(form.get('type') ?? '') as EmailOtpType | ''
+  const code = String(form.get('code') ?? '')
+  const next = safeNext(String(form.get('next') ?? ''))
+
+  // Build redirects from the configured site origin, NOT request.url — behind a
+  // reverse proxy (Azure App Service serves on internal localhost:8080) the
+  // request host would otherwise leak into the Location header. Use 303 so the
+  // browser issues a GET to the destination after this POST.
+  const origin = await getSiteOrigin()
+  const fail = () => NextResponse.redirect(new URL('/forgot-password?error=link', origin), 303)
+
+  // Recovery links land on /change-password, but that session is AAL1 and the
+  // proxy's TOTP gate would bounce it to /mfa first. Mark it so the proxy lets
+  // this one page through — see lib/auth/recovery.ts.
+  const ok = (isRecovery: boolean) => {
+    const response = NextResponse.redirect(new URL(next, origin), 303)
+    if (isRecovery) {
+      response.cookies.set(RECOVERY_COOKIE, '1', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: origin.startsWith('https://'),
+        path: '/',
+        maxAge: RECOVERY_COOKIE_MAX_AGE,
+      })
     }
-    return NextResponse.redirect(url)
+    return response
   }
 
   const supabase = await createClient()
@@ -38,22 +153,22 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
     if (!error) {
       await audit('AUTH_LINK_VERIFIED', { actor: data.user?.email ?? null, detail: type })
-      return redirectTo(next)
+      return ok(type === 'recovery')
     }
     await audit('AUTH_LINK_REJECTED', { detail: `${type}: ${error.message}`, success: false })
-    return redirectTo('/forgot-password', { error: 'link' })
+    return fail()
   }
 
   if (code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       await audit('AUTH_LINK_VERIFIED', { actor: data.user?.email ?? null, detail: 'code' })
-      return redirectTo(next)
+      // PKCE links don't carry the type, so infer it from where we're sending them.
+      return ok(next.startsWith('/change-password'))
     }
     await audit('AUTH_LINK_REJECTED', { detail: `code: ${error.message}`, success: false })
-    return redirectTo('/forgot-password', { error: 'link' })
+    return fail()
   }
 
-  // No usable token (e.g. the link's error fragment, or a stray visit).
-  return redirectTo('/forgot-password', { error: 'link' })
+  return fail()
 }

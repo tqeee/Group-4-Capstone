@@ -442,7 +442,8 @@ export async function getFundTotals() {
 // shape the UI expects — only the net (deposits - withdrawals) is ever used
 // in calculations, and that always equals the original netFlows exactly.
 export type FundDailySeriesPoint = {
-  date: string // 'D Mon YYYY'
+  date: string // 'D Mon YYYY' — display label
+  isoDate: string // 'YYYY-MM-DD' — sortable/comparable, for range filters
   beginningValue: number
   dailyPnL: number
   deposits: number
@@ -458,6 +459,7 @@ export async function getFundDailySeries(fundId: string): Promise<FundDailySerie
     const netFlows = num(d.netFlows)
     return {
       date: fmtDate(d.date),
+      isoDate: d.date.toISOString().slice(0, 10),
       beginningValue: num(d.openingBalance),
       dailyPnL: num(d.pnl),
       deposits: netFlows > 0 ? netFlows : 0,

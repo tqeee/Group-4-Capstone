@@ -1,6 +1,6 @@
 'use client';
 import { useActionState, useEffect, useState } from 'react';
-import { inviteUser, setUserStatus } from './actions';
+import { inviteUser, setUserStatus, resetUserMfa } from './actions';
 
 const statusStyle = {
   Active: 'bg-green-50 text-green-600',
@@ -37,6 +37,7 @@ export default function UsersClient({ users, loadError }) {
   const [toast, setToast] = useState(null);
   const [inviteState, inviteAction, invitePending] = useActionState(inviteUser, undefined);
   const [statusState, statusAction, statusPending] = useActionState(setUserStatus, undefined);
+  const [mfaState, mfaAction, mfaPending] = useActionState(resetUserMfa, undefined);
 
   // Close the modal and surface a toast when an invite succeeds. Done during
   // render (not in an effect) per https://react.dev/learn/you-might-not-need-an-effect.
@@ -55,6 +56,15 @@ export default function UsersClient({ users, loadError }) {
     setHandledStatusState(statusState);
     if (statusState) {
       setToast(statusState.message);
+    }
+  }
+
+  // ...and for 2FA resets.
+  const [handledMfaState, setHandledMfaState] = useState(mfaState);
+  if (mfaState !== handledMfaState) {
+    setHandledMfaState(mfaState);
+    if (mfaState) {
+      setToast(mfaState.message);
     }
   }
 
@@ -166,29 +176,58 @@ export default function UsersClient({ users, loadError }) {
                   <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">{formatDate(user.createdAt)}</td>
                   <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">{formatDate(user.lastSignInAt)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <form
-                      action={statusAction}
-                      onSubmit={e => {
-                        const verb = user.status === 'Disabled' ? 're-enable' : 'disable';
-                        if (!window.confirm(`Are you sure you want to ${verb} ${user.email}?`)) {
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      <input type="hidden" name="userId" value={user.id} />
-                      <input type="hidden" name="disable" value={user.status === 'Disabled' ? 'false' : 'true'} />
-                      <button
-                        type="submit"
-                        disabled={statusPending}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
-                          user.status === 'Disabled'
-                            ? 'border-green-200 text-green-600 hover:bg-green-50'
-                            : 'border-red-200 text-red-500 hover:bg-red-50'
-                        }`}
+                    <div className="flex items-center justify-end gap-2">
+                      {/* Recovery path for a user who has lost their authenticator:
+                          without it they can neither sign in nor reset their password. */}
+                      {user.hasMfa && (
+                        <form
+                          action={mfaAction}
+                          onSubmit={e => {
+                            if (!window.confirm(
+                              `Clear two-factor authentication for ${user.email}?\n\n` +
+                              'They will be able to sign in with their password alone until they enrol a new authenticator. ' +
+                              'Only do this once you have confirmed their identity.'
+                            )) {
+                              e.preventDefault();
+                            }
+                          }}
+                        >
+                          <input type="hidden" name="userId" value={user.id} />
+                          <button
+                            type="submit"
+                            disabled={mfaPending}
+                            title="Remove this user's authenticator so they can recover their account"
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition disabled:opacity-50"
+                          >
+                            Reset 2FA
+                          </button>
+                        </form>
+                      )}
+
+                      <form
+                        action={statusAction}
+                        onSubmit={e => {
+                          const verb = user.status === 'Disabled' ? 're-enable' : 'disable';
+                          if (!window.confirm(`Are you sure you want to ${verb} ${user.email}?`)) {
+                            e.preventDefault();
+                          }
+                        }}
                       >
-                        {user.status === 'Disabled' ? 'Enable' : 'Disable'}
-                      </button>
-                    </form>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <input type="hidden" name="disable" value={user.status === 'Disabled' ? 'false' : 'true'} />
+                        <button
+                          type="submit"
+                          disabled={statusPending}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
+                            user.status === 'Disabled'
+                              ? 'border-green-200 text-green-600 hover:bg-green-50'
+                              : 'border-red-200 text-red-500 hover:bg-red-50'
+                          }`}
+                        >
+                          {user.status === 'Disabled' ? 'Enable' : 'Disable'}
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

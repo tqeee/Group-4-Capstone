@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { fmtDate, fmtMoney } from '@/lib/format';
 import { createFund } from './actions';
 import { FUND_CURRENCIES, FUND_RISK_LEVELS } from './constants';
+import FundDetailModal from './FundDetailModal';
 
 const riskStyle = {
   Low: 'bg-green-50 text-green-600',
@@ -11,10 +12,13 @@ const riskStyle = {
   High: 'bg-red-50 text-red-500',
 };
 
-export default function FundsClient({ funds }) {
+export default function FundsClient({ funds, seriesByFund }) {
   const [showModal, setShowModal] = useState(false);
+  const [openFundId, setOpenFundId] = useState(null);
   const [toast, setToast] = useState(null);
   const [state, formAction, isPending] = useActionState(createFund, undefined);
+
+  const openFund = funds.find(f => f.id === openFundId) ?? null;
 
   // Close the modal and surface a toast when creation succeeds.
   const [handledState, setHandledState] = useState(state);
@@ -85,12 +89,16 @@ export default function FundsClient({ funds }) {
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Fund Directory</p>
         <h2 className="mt-2 text-lg font-bold text-gray-900">Products offered to investors</h2>
+        <p className="mt-1 text-sm text-gray-400">Select a fund to see its performance history.</p>
 
         <div className="mt-5 grid gap-3">
           {funds.map(fund => (
-            <div
+            <button
               key={fund.id}
-              className="flex flex-col gap-4 rounded-lg border border-gray-100 p-4 lg:flex-row lg:items-center lg:justify-between"
+              type="button"
+              onClick={() => setOpenFundId(fund.id)}
+              aria-label={`View performance for ${fund.name}`}
+              className="flex w-full flex-col gap-4 rounded-lg border border-gray-100 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-blue-500 lg:flex-row lg:items-center lg:justify-between"
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-700 text-xs font-bold text-white">
@@ -126,8 +134,11 @@ export default function FundsClient({ funds }) {
                     {fund.returnPct.toFixed(2)}%
                   </p>
                 </div>
+                <svg className="hidden h-4 w-4 flex-shrink-0 text-gray-300 lg:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-            </div>
+            </button>
           ))}
           {funds.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">
@@ -136,6 +147,15 @@ export default function FundsClient({ funds }) {
           )}
         </div>
       </section>
+
+      {/* Fund performance detail */}
+      {openFund && (
+        <FundDetailModal
+          fund={openFund}
+          series={seriesByFund?.[openFund.id] ?? []}
+          onClose={() => setOpenFundId(null)}
+        />
+      )}
 
       {/* Add-fund modal with blurred background */}
       {showModal && (

@@ -2,6 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { normalizeRole, requiredRoleForPath, ROLE_HOME } from '@/lib/auth/roles'
+import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
+import {
+  IDLE_COOKIE,
+  IDLE_TIMEOUT_MS,
+  idleCookieOptions,
+  idleMillisFrom,
+} from '@/lib/auth/idle'
+import { siteOriginFromHeaders } from '@/lib/site-url'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -66,6 +74,25 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isApiRoute = pathname.startsWith('/api/')
 
+  // Never build a redirect from `request.nextUrl` — behind a reverse proxy that
+  // forwards to an internal port (Azure App Service uses 8080), it carries the
+  // server's internal origin/port, not the public one. The shared helper is
+  // env-first (NEXT_PUBLIC_SITE_URL, which must be set in production) and
+  // falls back to the forwarded/host headers otherwise.
+  const siteOrigin = siteOriginFromHeaders(request.headers, request.nextUrl.origin)
+
+  // `search` defaults to carrying the current query string across the redirect
+  // (so e.g. ?search= survives a role bounce); pass it explicitly to replace it.
+  const redirectTo = (to: string, search?: string) => {
+    const url = new URL(to, siteOrigin)
+    url.search = search ?? request.nextUrl.search
+    const response = NextResponse.redirect(url)
+    // getClaims()/getUser() above may have refreshed the session; those cookies
+    // live on supabaseResponse, and a fresh redirect response would drop them.
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+    return response
+  }
+
   // Routes that can be reached without being signed in. Exact-or-segment
   // matching so a prefix can't accidentally expose similarly named routes.
   const publicRoutes = ['/login', '/forgot-password', '/auth', '/debug-users']
@@ -78,12 +105,35 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
     // No user: send them to the login page.
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return redirectTo('/login')
   }
 
   if (user) {
+    // Idle timeout (§3.1). Enforced here rather than by Supabase's own
+    // "Inactivity timeout" setting, which is Pro-only and lazily applied — see
+    // lib/auth/idle.ts. This is the control; the client countdown is only the
+    // warning UI over it, so a closed lid or a replayed cookie still expires.
+    if (idleMillisFrom(request.cookies.get(IDLE_COOKIE)?.value) > IDLE_TIMEOUT_MS) {
+      // scope 'local' revokes THIS session only — an idle desktop tab must not
+      // sign the same user out of their phone.
+      await supabase.auth.signOut({ scope: 'local' })
+
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+      }
+      const response = redirectTo('/login', '?timeout=1')
+      response.cookies.delete(IDLE_COOKIE)
+      return response
+    }
+
+    // Stamp the clock forward. Done before the gates below so the redirects
+    // they issue carry the fresh timestamp too.
+    supabaseResponse.cookies.set(
+      IDLE_COOKIE,
+      String(Date.now()),
+      idleCookieOptions(siteOrigin.startsWith('https://'))
+    )
+
     const role = normalizeRole(user.app_metadata?.role)
     const mustChangePassword = user.app_metadata?.must_change_password === true
 
@@ -93,24 +143,28 @@ export async function updateSession(request: NextRequest) {
     const hasVerifiedFactor =
       user.factors?.some((factor) => factor.status === 'verified') ?? false
     const needsMfaChallenge = hasVerifiedFactor && claims?.aal !== 'aal2'
-    if (needsMfaChallenge && pathname !== '/mfa') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/mfa'
-      return NextResponse.redirect(url)
+
+    // ...with one exception: a password-recovery link produces an AAL1 session,
+    // so this gate would bounce the user to /mfa and they could never reach the
+    // page the reset email invited them to. /auth/confirm marks that session;
+    // honour it for /change-password ONLY. Everything else still demands AAL2,
+    // so the TOTP challenge simply moves to the redirect after the new password
+    // is set — the factor is never skipped, only deferred.
+    const completingRecovery =
+      request.cookies.get(RECOVERY_COOKIE)?.value === '1' && pathname === '/change-password'
+
+    if (needsMfaChallenge && pathname !== '/mfa' && !completingRecovery) {
+      return redirectTo('/mfa')
     }
 
     // Admin-created accounts must set their own password before doing anything else.
     if (mustChangePassword && pathname !== '/change-password') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/change-password'
-      return NextResponse.redirect(url)
+      return redirectTo('/change-password')
     }
 
     if (pathname === '/login' || pathname === '/') {
       // Already signed in: skip the login page and the landing page.
-      const url = request.nextUrl.clone()
-      url.pathname = ROLE_HOME[role]
-      return NextResponse.redirect(url)
+      return redirectTo(ROLE_HOME[role])
     }
 
     // Role-gated sections: send users visiting another role's pages back to
@@ -120,9 +174,7 @@ export async function updateSession(request: NextRequest) {
       if (isApiRoute) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-      const url = request.nextUrl.clone()
-      url.pathname = ROLE_HOME[role]
-      return NextResponse.redirect(url)
+      return redirectTo(ROLE_HOME[role])
     }
   }
 
