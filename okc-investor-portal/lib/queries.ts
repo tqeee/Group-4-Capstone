@@ -8,6 +8,20 @@ import { fmtDate } from '@/lib/format'
 
 const num = (d: unknown) => Number(d)
 
+// FundFlow display status. PENDING and AWAITING_PROOF both show under
+// "Pending Transaction" — from the investor's and ops' perspective there's
+// nothing to review yet either way, just something still in motion before
+// the transfer is confirmed. Callers that need to distinguish them (e.g. to
+// show the right action button) use the raw status alongside this label.
+const FLOW_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Pending Transaction',
+  AWAITING_PROOF: 'Pending Transaction',
+  PENDING_RECEIPT: 'Pending Receipt',
+  COMPLETED: 'Completed',
+  REJECTED: 'Rejected',
+}
+const flowStatusLabel = (status: string) => FLOW_STATUS_LABEL[status] ?? status
+
 // ---------------------------------------------------------------------------
 // Investor profile
 // ---------------------------------------------------------------------------
@@ -244,7 +258,7 @@ export type ActivityItem = {
   type: 'Deposit' | 'Withdrawal' | 'Daily P&L'
   fund: string
   amount: number
-  status: 'Completed' | 'Pending' | 'Approved' | 'Rejected'
+  status: 'Completed' | 'Pending Transaction' | 'Pending Receipt' | 'Rejected'
 }
 
 export async function getInvestorActivity(investorId: string): Promise<ActivityItem[]> {
@@ -264,7 +278,7 @@ export async function getInvestorActivity(investorId: string): Promise<ActivityI
       type: (f.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal') as ActivityItem['type'],
       fund: labels.get(f.fundId)?.name ?? 'Fund',
       amount: f.type === 'DEPOSIT' ? num(f.amount) : -num(f.amount),
-      status: (f.status.charAt(0) + f.status.slice(1).toLowerCase()) as ActivityItem['status'],
+      status: flowStatusLabel(f.status) as ActivityItem['status'],
     })),
     ...ledger.map(r => ({
       id: `pnl-${r.id}`,
@@ -295,7 +309,9 @@ export async function getInvestorFlows(investorId: string) {
     fund: labels.get(f.fundId)?.name ?? 'Fund',
     requestDate: f.requestDate.toISOString(),
     processedDate: f.processedDate?.toISOString() ?? null,
-    status: f.status.charAt(0) + f.status.slice(1).toLowerCase(),
+    status: flowStatusLabel(f.status),
+    rawStatus: f.status,
+    proofOfTransfer: f.proofOfTransfer,
     note: f.note,
   }))
 }
@@ -333,7 +349,9 @@ export async function getFlowsForReview() {
     currency: f.currency,
     requestDate: f.requestDate.toISOString(),
     processedDate: f.processedDate?.toISOString() ?? null,
-    status: f.status.charAt(0) + f.status.slice(1).toLowerCase(),
+    status: flowStatusLabel(f.status),
+    rawStatus: f.status,
+    proofOfTransfer: f.proofOfTransfer,
     reviewedBy: f.reviewedBy,
     note: f.note,
   }))

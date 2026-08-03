@@ -23,7 +23,7 @@ export default async function AdminOverview() {
   const investors = directory.filter(i => i.role === 'INVESTOR')
   const aum = funds.reduce((s, f) => s + f.aum, 0)
   const totalPnl = funds.reduce((s, f) => s + f.totalPnl, 0)
-  const pending = flows.filter(f => f.status === 'Pending')
+  const pending = flows.filter(f => f.status === 'Pending Transaction' || f.status === 'Pending Receipt')
   const pendingDeposits = pending.filter(f => f.type === 'Deposit').length
   const asOf = funds[0]?.asOf ?? null
 
@@ -50,7 +50,7 @@ export default async function AdminOverview() {
   ]
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div>
       <div className="mb-6">
         <p className="text-gray-500 text-sm mb-1">Welcome back</p>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

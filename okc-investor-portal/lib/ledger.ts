@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 //   opening balance (= previous day's closing)
 //   + daily P&L        (sum of profit+commission+swap+fee of that day's deals,
 //                       split among investors pro-rata by opening share %)
-//   + net flows        (approved deposit/withdrawal requests processed that day)
+//   + net flows        (completed deposit/withdrawal requests processed that day)
 //   = closing balance  (then each investor's share % is recalculated)
 //
 // The intermediate workings are persisted to FundDailyNav (fund level) and
@@ -173,7 +173,7 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
     prisma.fundFlow.findMany({
       where: {
         fundId,
-        status: { in: ['APPROVED', 'COMPLETED'] },
+        status: 'COMPLETED',
         processedDate: { not: null },
       },
       select: { investorId: true, type: true, amount: true, processedDate: true },
@@ -202,12 +202,6 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
     prisma.fundDailyNav.deleteMany({ where: { fundId } }),
     prisma.fundDailyNav.createMany({ data: navRows }),
     prisma.investorDailyLedger.createMany({ data: ledgerRows }),
-    // Approved flows whose processed date has been replayed are now reflected
-    // in the ledger — mark them completed.
-    prisma.fundFlow.updateMany({
-      where: { fundId, status: 'APPROVED', processedDate: { not: null } },
-      data: { status: 'COMPLETED' },
-    }),
   ])
 }
 

@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { fmtDate, fmtMoney } from '@/lib/format';
-import { submitFlowRequest } from './actions';
+import { submitFlowRequest, submitProofOfTransfer } from './actions';
 
 function RequestTypeCard({ isSelected, label, description, onClick, children }) {
   return (
@@ -20,7 +20,7 @@ function RequestTypeCard({ isSelected, label, description, onClick, children }) 
           isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
         }`}
       >
-        {children}  
+        {children}
       </span>
       <span>
         <span className={`block font-semibold ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
@@ -33,11 +33,13 @@ function RequestTypeCard({ isSelected, label, description, onClick, children }) 
 }
 
 const statusStyle = {
-  Pending: 'bg-amber-50 text-amber-600',
-  Approved: 'bg-blue-50 text-blue-600',
+  'Pending Transaction': 'bg-amber-50 text-amber-600',
+  'Pending Receipt': 'bg-blue-50 text-blue-600',
   Completed: 'bg-green-50 text-green-600',
   Rejected: 'bg-red-50 text-red-500',
 };
+
+const TABS = ['All', 'Pending Transaction', 'Pending Receipt', 'Completed', 'Rejected'];
 
 export default function RequestTransactionClient({ requests, funds, minDeposit, minWithdrawal }) {
   const [activeTab, setActiveTab] = useState('All');
@@ -45,32 +47,33 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
   const [requestType, setRequestType] = useState('deposit');
   const [state, formAction, isPending] = useActionState(submitFlowRequest, undefined);
 
+  const [submittingProofFor, setSubmittingProofFor] = useState(null); // request awaiting proof submission
+  const [proofState, proofFormAction, isProofPending] = useActionState(submitProofOfTransfer, undefined);
+
   // Close the modal when a submission succeeds (render-time adjustment).
   const [handledState, setHandledState] = useState(state);
   if (state !== handledState) {
     setHandledState(state);
     if (state?.status === 'success') setIsModalOpen(false);
   }
+  const [handledProofState, setHandledProofState] = useState(proofState);
+  if (proofState !== handledProofState) {
+    setHandledProofState(proofState);
+    if (proofState?.status === 'success') setSubmittingProofFor(null);
+  }
 
-  const counts = useMemo(
-    () => ({
-      All: requests.length,
-      Pending: requests.filter(r => r.status === 'Pending').length,
-      Approved: requests.filter(r => r.status === 'Approved' || r.status === 'Completed').length,
-      Rejected: requests.filter(r => r.status === 'Rejected').length,
-    }),
-    [requests]
-  );
+  const counts = useMemo(() => {
+    const map = { All: requests.length };
+    for (const t of ['Pending Transaction', 'Pending Receipt', 'Completed', 'Rejected']) {
+      map[t] = requests.filter(r => r.status === t).length;
+    }
+    return map;
+  }, [requests]);
 
-  const filtered = useMemo(() => {
-    if (activeTab === 'All') return requests;
-    if (activeTab === 'Approved')
-      return requests.filter(r => r.status === 'Approved' || r.status === 'Completed');
-    return requests.filter(r => r.status === activeTab);
-  }, [requests, activeTab]);
+  const filtered = activeTab === 'All' ? requests : requests.filter(r => r.status === activeTab);
 
   const pendingAmount = requests
-    .filter(r => r.status === 'Pending')
+    .filter(r => r.status === 'Pending Transaction')
     .reduce((s, r) => s + r.amount, 0);
 
   const minAmount = requestType === 'deposit' ? minDeposit : minWithdrawal;
@@ -79,8 +82,8 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Request Transaction</h1>
-          <p className="text-gray-500 mt-2">Submit and track your deposit and withdrawal requests.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Request Transaction</h1>
+          <p className="text-gray-400 text-sm mt-1">Submit and track your deposit and withdrawal requests.</p>
         </div>
         <button
           type="button"
@@ -97,10 +100,13 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
       {state?.status === 'success' && (
         <p className="auth-status-message status-success">{state.message}</p>
       )}
+      {proofState?.status === 'success' && (
+        <p className="auth-status-message status-success">{proofState.message}</p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Pending Requests', value: String(counts.Pending), tone: 'text-amber-500 bg-amber-50' },
+          { label: 'Pending Requests', value: String(counts['Pending Transaction']), tone: 'text-amber-500 bg-amber-50' },
           { label: 'Pending Amount', value: fmtMoney(pendingAmount), tone: 'text-blue-600 bg-blue-50' },
           { label: 'Total Requests', value: String(counts.All), tone: 'text-gray-500 bg-gray-100' },
         ].map((card, i) => (
@@ -119,7 +125,7 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
       </div>
 
       <div className="inline-flex rounded-xl bg-white border border-gray-200 p-1 shadow-sm overflow-x-auto max-w-full">
-        {['All', 'Pending', 'Approved', 'Rejected'].map(tab => (
+        {TABS.map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -136,7 +142,7 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[700px]">
+          <table className="w-full text-left min-w-[760px]">
             <thead>
               <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 <th className="px-6 py-4">Request</th>
@@ -146,6 +152,7 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
                 <th className="px-6 py-4">Requested</th>
                 <th className="px-6 py-4">Processed</th>
                 <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -186,11 +193,28 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
                         {request.status}
                       </span>
                     </td>
+                    <td className="px-6 py-5">
+                      {request.rawStatus === 'AWAITING_PROOF' ? (
+                        <button
+                          type="button"
+                          onClick={() => setSubmittingProofFor(request)}
+                          className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-800"
+                        >
+                          Submit proof of transfer
+                        </button>
+                      ) : request.rawStatus === 'PENDING_RECEIPT' ? (
+                        <span className="text-xs text-gray-400" title={request.proofOfTransfer ?? ''}>
+                          Proof submitted
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-400">
                     No requests found for this status.
                   </td>
                 </tr>
@@ -311,6 +335,75 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
                     : requestType === 'deposit'
                       ? 'Submit Deposit'
                       : 'Submit Withdrawal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {submittingProofFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-blue-950/20">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Proof of Transfer</p>
+                <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900">
+                  {submittingProofFor.type} · {fmtMoney(submittingProofFor.amount)}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmittingProofFor(null)}
+                aria-label="Close"
+                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form action={proofFormAction}>
+              <input type="hidden" name="flowId" value={submittingProofFor.id} />
+              <div className="space-y-5 px-6 py-6">
+                <p className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-gray-600">
+                  Check the bank details emailed to you and enter a reference for the transfer
+                  you made (e.g. your bank&apos;s transaction ID) so operations can match it to
+                  this request.
+                </p>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold text-gray-600">Transfer reference</span>
+                  <input
+                    type="text"
+                    name="proofOfTransfer"
+                    required
+                    maxLength={200}
+                    placeholder="e.g. bank transaction ID"
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm font-semibold text-gray-900 outline-none transition focus:border-blue-500 focus:bg-white"
+                  />
+                </label>
+
+                {proofState?.status === 'error' && (
+                  <p className="auth-status-message status-error">{proofState.message}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50 px-6 py-5">
+                <button
+                  type="button"
+                  onClick={() => setSubmittingProofFor(null)}
+                  className="rounded-2xl bg-white px-4 py-3 font-semibold text-gray-600 ring-1 ring-gray-200 transition hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProofPending}
+                  className="rounded-2xl bg-blue-700 px-4 py-3 font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-blue-300"
+                >
+                  {isProofPending ? 'Submitting…' : 'Submit'}
                 </button>
               </div>
             </form>

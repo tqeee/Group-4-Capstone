@@ -44,7 +44,7 @@ export async function GET(
   const flowRows = await prisma.fundFlow.findMany({
     where: {
       investorId: investor.id,
-      status: { in: ['APPROVED', 'COMPLETED'] },
+      status: 'COMPLETED',
       processedDate: { gte: start, lt: end },
     },
     select: { fundId: true, type: true, amount: true, processedDate: true },

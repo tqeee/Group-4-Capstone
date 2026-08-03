@@ -10,9 +10,8 @@ export default async function OperationLogPage() {
   return (
     <div>
       <div className="mb-6">
-        <p className="text-sm text-gray-500">Operations</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950">Operation Log</h1>
-        <p className="mt-2 text-sm text-gray-500">
+        <h1 className="text-3xl font-bold text-gray-900">Operation Log</h1>
+        <p className="text-gray-400 text-sm mt-1">
           Read-only record of authentication, admin, and operational activity.
         </p>
       </div>
