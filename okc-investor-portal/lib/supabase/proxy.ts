@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { normalizeRole, requiredRoleForPath, ROLE_HOME } from '@/lib/auth/roles'
+import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
 import { siteOriginFromHeaders } from '@/lib/site-url'
 
 export async function updateSession(request: NextRequest) {
@@ -107,7 +108,17 @@ export async function updateSession(request: NextRequest) {
     const hasVerifiedFactor =
       user.factors?.some((factor) => factor.status === 'verified') ?? false
     const needsMfaChallenge = hasVerifiedFactor && claims?.aal !== 'aal2'
-    if (needsMfaChallenge && pathname !== '/mfa') {
+
+    // ...with one exception: a password-recovery link produces an AAL1 session,
+    // so this gate would bounce the user to /mfa and they could never reach the
+    // page the reset email invited them to. /auth/confirm marks that session;
+    // honour it for /change-password ONLY. Everything else still demands AAL2,
+    // so the TOTP challenge simply moves to the redirect after the new password
+    // is set — the factor is never skipped, only deferred.
+    const completingRecovery =
+      request.cookies.get(RECOVERY_COOKIE)?.value === '1' && pathname === '/change-password'
+
+    if (needsMfaChallenge && pathname !== '/mfa' && !completingRecovery) {
       return redirectTo('/mfa')
     }
 

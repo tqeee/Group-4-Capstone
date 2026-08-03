@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { getSiteOrigin } from '@/lib/site-url'
+import { RECOVERY_COOKIE, RECOVERY_COOKIE_MAX_AGE } from '@/lib/auth/recovery'
 import { audit } from '@/lib/audit'
 
 // Supabase auth email links (recovery, invite, email change) carry a SINGLE-USE
@@ -100,8 +101,24 @@ export async function POST(request: NextRequest) {
   // request host would otherwise leak into the Location header. Use 303 so the
   // browser issues a GET to the destination after this POST.
   const origin = await getSiteOrigin()
-  const ok = () => NextResponse.redirect(new URL(next, origin), 303)
   const fail = () => NextResponse.redirect(new URL('/forgot-password?error=link', origin), 303)
+
+  // Recovery links land on /change-password, but that session is AAL1 and the
+  // proxy's TOTP gate would bounce it to /mfa first. Mark it so the proxy lets
+  // this one page through — see lib/auth/recovery.ts.
+  const ok = (isRecovery: boolean) => {
+    const response = NextResponse.redirect(new URL(next, origin), 303)
+    if (isRecovery) {
+      response.cookies.set(RECOVERY_COOKIE, '1', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: origin.startsWith('https://'),
+        path: '/',
+        maxAge: RECOVERY_COOKIE_MAX_AGE,
+      })
+    }
+    return response
+  }
 
   const supabase = await createClient()
 
@@ -109,7 +126,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
     if (!error) {
       await audit('AUTH_LINK_VERIFIED', { actor: data.user?.email ?? null, detail: type })
-      return ok()
+      return ok(type === 'recovery')
     }
     await audit('AUTH_LINK_REJECTED', { detail: `${type}: ${error.message}`, success: false })
     return fail()
@@ -119,7 +136,8 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       await audit('AUTH_LINK_VERIFIED', { actor: data.user?.email ?? null, detail: 'code' })
-      return ok()
+      // PKCE links don't carry the type, so infer it from where we're sending them.
+      return ok(next.startsWith('/change-password'))
     }
     await audit('AUTH_LINK_REJECTED', { detail: `code: ${error.message}`, success: false })
     return fail()

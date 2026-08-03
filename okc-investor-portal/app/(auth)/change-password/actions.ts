@@ -1,10 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeRole, ROLE_HOME } from '@/lib/auth/roles'
+import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
 import { audit } from '@/lib/audit'
 
 export type ChangePasswordState = { error: string } | undefined
@@ -82,6 +84,10 @@ export async function changePassword(
   }
 
   await audit('PASSWORD_CHANGED', { actor: userData.user.email ?? null })
+
+  // The recovery exemption is spent — drop it so the TOTP gate applies again on
+  // the very next request (see lib/auth/recovery.ts).
+  ;(await cookies()).delete(RECOVERY_COOKIE)
 
   revalidatePath('/', 'layout')
   redirect(ROLE_HOME[normalizeRole(userData.user.app_metadata?.role)])
