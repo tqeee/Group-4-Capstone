@@ -76,6 +76,15 @@ export async function login(
     return { error: 'Invalid email or password.' }
   }
 
+  // A new session starts a new idle clock. This POST reached the proxy with no
+  // session yet, so the proxy's stamp (which only runs for an authenticated
+  // request) was skipped — leaving whatever the PREVIOUS session on this
+  // browser wrote. If that timestamp is over the idle budget, the very first
+  // page after signing in would be judged idle and bounce straight back to
+  // /login?timeout=1. Clearing is enough: a missing cookie is treated as
+  // "start the clock now", so the next request stamps it fresh.
+  ;(await cookies()).delete(IDLE_COOKIE)
+
   // Refresh server components so they pick up the new session.
   revalidatePath('/', 'layout')
 

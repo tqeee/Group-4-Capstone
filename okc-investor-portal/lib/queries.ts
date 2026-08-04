@@ -112,14 +112,20 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   const lastDate = new Date(lastT)
   const monthStart = Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), 1)
 
+  // 8.2 (ii): a period's return is its daily % returns compounded, not the
+  // period's P&L over its opening balance. The two only agree when capital
+  // never moves; the moment a deposit lands mid-period they diverge, and the
+  // Reports page (which already compounds) would disagree with the dashboard
+  // about the very same month.
+  const periodPct = (period: typeof days) =>
+    compoundReturn(period.map(([, d]) => ({ openingBalance: d.opening, pnl: d.pnl }))) * 100
+
   const mtdDays = days.filter(([t]) => t >= monthStart)
   const mtdPnl = mtdDays.reduce((s, [, d]) => s + d.pnl, 0)
-  const mtdBase = mtdDays[0]?.[1].opening ?? 0
 
   const yearStart = Date.UTC(lastDate.getUTCFullYear(), 0, 1)
   const ytdDays = days.filter(([t]) => t >= yearStart)
   const ytdPnl = ytdDays.reduce((s, [, d]) => s + d.pnl, 0)
-  const ytdBase = ytdDays[0]?.[1].opening ?? 0
 
   const inceptionPnl = days.reduce((s, [, d]) => s + d.pnl, 0)
   const grossDeposits = num(deposits._sum.amount ?? 0)
@@ -159,15 +165,18 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     dayPnl: last.pnl,
     dayPct: last.opening > 0 ? (last.pnl / last.opening) * 100 : 0,
     mtdPnl,
-    // If the period's first day is also the investor's very first activity
-    // day, its opening balance is genuinely $0 (before that day's deposit) —
-    // fall back to gross deposits (same as inceptionPct) rather than showing
-    // a misleading 0% for exactly the investors this figure matters most for.
-    mtdPct: mtdBase > 0 ? (mtdPnl / mtdBase) * 100 : grossDeposits > 0 ? (mtdPnl / grossDeposits) * 100 : 0,
+    // Days before the investor holds anything have a $0 opening balance and no
+    // meaningful % return; compoundReturn skips them rather than dividing by
+    // zero, so a first-day deposit no longer needs a different denominator.
+    mtdPct: periodPct(mtdDays),
     ytdPnl,
-    ytdPct: ytdBase > 0 ? (ytdPnl / ytdBase) * 100 : grossDeposits > 0 ? (ytdPnl / grossDeposits) * 100 : 0,
+    ytdPct: periodPct(ytdDays),
     inceptionPnl,
-    // Investor-level %: total dollar PNL relative to gross deposits (money in).
+    // Deliberately NOT the 8.2 (ii) figure: this is money-weighted — total
+    // dollar P&L over the capital the investor actually put in — which answers
+    // "what did I make on my money". The time-weighted equivalent, which
+    // strips out the timing of their deposits, is ReportData.fundReturnPct.
+    // The two are different numbers by design and should stay labelled apart.
     inceptionPct: grossDeposits > 0 ? (inceptionPnl / grossDeposits) * 100 : 0,
     inceptionDate: new Date(days[0][0]).toISOString(),
     grossDeposits,

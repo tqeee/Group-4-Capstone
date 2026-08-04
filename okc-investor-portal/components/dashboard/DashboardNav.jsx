@@ -234,9 +234,12 @@ export default function DashboardNav({
               <Link
                 key={item.label}
                 href={item.href}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition ${
+                // Same constant weight as the desktop row — the mobile strip
+                // scrolls horizontally, so a widening active pill nudged the
+                // scroll position too.
+                className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
                   isActive(item.href)
-                    ? 'bg-blue-600 font-semibold text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -252,9 +255,13 @@ export default function DashboardNav({
               <Link
                 key={item.label}
                 href={item.href}
-                className={`group -mb-px flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm transition ${
+                // font-medium on BOTH states: making only the active tab
+                // semibold changed its width (measured: ±4.6px), which shifted
+                // every tab in the row on navigation and made the underline
+                // look like it landed in a different place each time.
+                className={`group -mb-px flex items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm font-medium transition ${
                   isActive(item.href)
-                    ? 'border-blue-600 font-semibold text-blue-700'
+                    ? 'border-blue-600 text-blue-700'
                     : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
                 }`}
               >

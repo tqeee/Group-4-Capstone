@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { normalizeRole, requiredRoleForPath, ROLE_HOME } from '@/lib/auth/roles'
-import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
+import { RECOVERY_COOKIE, RESET_TOKEN_COOKIE } from '@/lib/auth/recovery'
 import {
   IDLE_COOKIE,
   IDLE_TIMEOUT_MS,
@@ -100,7 +100,16 @@ export async function updateSession(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   )
 
-  if (!user && !isPublicRoute) {
+  // A password-reset link no longer signs anyone in on arrival: its token stays
+  // unspent until the new password is accepted, so the visitor reaches
+  // /change-password with NO session — only a cookie carrying that token. Let
+  // them through to the one page that can finish the job. The cookie grants
+  // nothing by itself: the page and the action each re-check the token against
+  // the database before showing or changing anything.
+  const completingReset =
+    Boolean(request.cookies.get(RESET_TOKEN_COOKIE)?.value) && pathname === '/change-password'
+
+  if (!user && !isPublicRoute && !completingReset) {
     if (isApiRoute) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
@@ -109,11 +118,31 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
-    // Idle timeout (§3.1). Enforced here rather than by Supabase's own
-    // "Inactivity timeout" setting, which is Pro-only and lazily applied — see
-    // lib/auth/idle.ts. This is the control; the client countdown is only the
-    // warning UI over it, so a closed lid or a replayed cookie still expires.
-    if (idleMillisFrom(request.cookies.get(IDLE_COOKIE)?.value) > IDLE_TIMEOUT_MS) {
+    // See the comment on the MFA gate below for what this cookie means.
+    // Computed up here because the idle timeout has to know about it too.
+    // `completingReset` counts as well: someone already signed in can open a
+    // reset link, and that session must not be bounced away from the page the
+    // link is trying to reach.
+    const completingRecovery =
+      completingReset ||
+      (request.cookies.get(RECOVERY_COOKIE)?.value === '1' && pathname === '/change-password')
+
+    // The idle timeout guards an unattended session that is *using* the portal.
+    // It must not fire on the routes people use to (re-)authenticate, or a
+    // perfectly valid password-reset link looks expired: the recovery link
+    // lands on /auth/confirm, and an old session still sitting in the browser
+    // would be signed out there — bouncing the user to /login before they ever
+    // see the link's Continue page. Same for lingering over the new password on
+    // /change-password. Neither is a hole: verifying a link mints a fresh
+    // session (which resets the clock anyway, see the route's ok() helper), and
+    // the recovery grant is already bounded by RECOVERY_COOKIE's own 15-minute
+    // max age — a shorter leash than this timeout.
+    const isReauthRoute = isPublicRoute || completingRecovery
+
+    if (
+      !isReauthRoute &&
+      idleMillisFrom(request.cookies.get(IDLE_COOKIE)?.value) > IDLE_TIMEOUT_MS
+    ) {
       // scope 'local' revokes THIS session only — an idle desktop tab must not
       // sign the same user out of their phone.
       await supabase.auth.signOut({ scope: 'local' })
@@ -127,12 +156,16 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Stamp the clock forward. Done before the gates below so the redirects
-    // they issue carry the fresh timestamp too.
-    supabaseResponse.cookies.set(
-      IDLE_COOKIE,
-      String(Date.now()),
-      idleCookieOptions(siteOrigin.startsWith('https://'))
-    )
+    // they issue carry the fresh timestamp too. Skipped on the re-auth routes:
+    // stamping there would let an idle session be kept alive indefinitely by
+    // parking on /login, which is the mirror image of the bug above.
+    if (!isReauthRoute) {
+      supabaseResponse.cookies.set(
+        IDLE_COOKIE,
+        String(Date.now()),
+        idleCookieOptions(siteOrigin.startsWith('https://'))
+      )
+    }
 
     const role = normalizeRole(user.app_metadata?.role)
     const mustChangePassword = user.app_metadata?.must_change_password === true
@@ -144,15 +177,12 @@ export async function updateSession(request: NextRequest) {
       user.factors?.some((factor) => factor.status === 'verified') ?? false
     const needsMfaChallenge = hasVerifiedFactor && claims?.aal !== 'aal2'
 
-    // ...with one exception: a password-recovery link produces an AAL1 session,
-    // so this gate would bounce the user to /mfa and they could never reach the
-    // page the reset email invited them to. /auth/confirm marks that session;
-    // honour it for /change-password ONLY. Everything else still demands AAL2,
-    // so the TOTP challenge simply moves to the redirect after the new password
-    // is set — the factor is never skipped, only deferred.
-    const completingRecovery =
-      request.cookies.get(RECOVERY_COOKIE)?.value === '1' && pathname === '/change-password'
-
+    // ...with one exception, `completingRecovery` above: a password-recovery
+    // link produces an AAL1 session, so this gate would bounce the user to /mfa
+    // and they could never reach the page the reset email invited them to.
+    // /auth/confirm marks that session; honour it for /change-password ONLY.
+    // Everything else still demands AAL2, so the TOTP challenge simply moves to
+    // the redirect after the new password is set — never skipped, only deferred.
     if (needsMfaChallenge && pathname !== '/mfa' && !completingRecovery) {
       return redirectTo('/mfa')
     }

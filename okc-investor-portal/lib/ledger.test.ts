@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { computeFundLedger, compoundReturn, type LedgerDeal, type LedgerFlow } from './ledger'
 
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`)
+const round2 = (n: number) => Math.round(n * 100) / 100
 
 const deal = (dateIso: string, profit: number, entry: number, overrides: Partial<LedgerDeal> = {}): LedgerDeal => ({
   time: day(dateIso),
@@ -113,7 +114,7 @@ describe('computeFundLedger', () => {
     expect(aDay3.closingSharePct + bDay3.closingSharePct).toBeCloseTo(1, 8)
   })
 
-  it('a withdrawal larger than the investor\'s balance floors at zero instead of going negative', () => {
+  it('a withdrawal larger than the investor\'s balance is capped at what they hold', () => {
     const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 10000), flow('2024-01-02', 'A', 'WITHDRAWAL', 15000)]
     const deals: LedgerDeal[] = []
 
@@ -121,15 +122,49 @@ describe('computeFundLedger', () => {
 
     const aDay2 = ledgerRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
     expect(aDay2.openingValue).toBe(10000)
-    expect(aDay2.closingValue).toBe(0) // floored, never negative
+    expect(aDay2.closingValue).toBe(0) // never negative
     expect(aDay2.closingSharePct).toBe(0)
 
-    // The fund's own books still reflect the full requested withdrawal amount
-    // (deliberate — see discussion: this shows up as a visible reconciliation
-    // gap rather than corrupting a running per-investor balance).
+    // Only the money that could actually leave the fund is booked. Applying
+    // the full $15,000 would leave the fund's NAV at -$5,000 while its only
+    // investor is worth $0, and the next day would then open at $0 rather
+    // than where the previous day closed — an unreconcilable set of books.
     const navDay2 = navRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
-    expect(navDay2.netFlows).toBe(-15000)
-    expect(navDay2.closingBalance).toBe(-5000)
+    expect(navDay2.netFlows).toBe(-10000)
+    expect(navDay2.closingBalance).toBe(0)
+  })
+
+  it('P&L earned before the fund holds any capital is carried, not lost', () => {
+    // Deals imported ahead of the matching deposit being marked processed:
+    // nobody owns a share on 1 Jan, so that day's $800 cannot be split. It is
+    // held over and released on the next day the fund actually has capital.
+    const deals = [deal('2024-01-01', 800, 1), deal('2024-01-03', 100, 1)]
+    const flows = [flow('2024-01-02', 'A', 'DEPOSIT', 10000)]
+
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows)
+
+    expect(navRows.map(r => ({ date: r.date, pnl: r.pnl, closingBalance: r.closingBalance }))).toEqual([
+      { date: day('2024-01-02'), pnl: 0, closingBalance: 10000 },
+      { date: day('2024-01-03'), pnl: 900, closingBalance: 10900 }, // 800 carried + 100 earned
+    ])
+    expect(ledgerRows.reduce((s, r) => s + r.pnl, 0)).toBe(900)
+  })
+
+  it('splits a loss deeper than the fund\'s capital without losing the shareholding split', () => {
+    const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 6000), flow('2024-01-01', 'B', 'DEPOSIT', 4000)]
+    const deals = [deal('2024-01-02', -15000, 1), deal('2024-01-03', 20000, 1)]
+
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows)
+
+    // A negative opening balance is still a valid base to apportion against:
+    // value / total stays 60/40 because both numerator and denominator flip.
+    const day3 = ledgerRows.filter(r => r.date.getTime() === day('2024-01-03').getTime())
+    expect(day3.find(r => r.investorId === 'A')!.openingSharePct).toBe(0.6)
+    expect(day3.find(r => r.investorId === 'B')!.openingSharePct).toBe(0.4)
+    expect(day3.reduce((s, r) => s + r.closingValue, 0)).toBe(15000)
+
+    // A % return against a negative base would be sign-flipped nonsense.
+    expect(navRows.find(r => r.date.getTime() === day('2024-01-03').getTime())!.dailyReturnPct).toBeNull()
   })
 
   it('splits P&L pro-rata by opening share for multiple investors', () => {
@@ -213,6 +248,70 @@ describe('computeFundLedger', () => {
     expect(a.pnl).toBe(540) // 60% of the net 900
     expect(b.pnl).toBe(360) // 40% of the net 900
   })
+})
+
+// The whole point of persisting these workings is that they reconcile. If they
+// don't, every 8.2 metric derived from them inherits the error.
+describe('computeFundLedger invariants', () => {
+  const check = (deals: LedgerDeal[], flows: LedgerFlow[]) => {
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows)
+    const rowsOn = (d: Date) => ledgerRows.filter(r => r.date.getTime() === d.getTime())
+    const sum = (ns: number[]) => Math.round(ns.reduce((a, b) => a + b, 0) * 1e8) / 1e8
+
+    navRows.forEach((nav, i) => {
+      const rows = rowsOn(nav.date)
+      // 1. The fund row adds up.
+      expect(round2(nav.openingBalance + nav.pnl + nav.netFlows)).toBe(nav.closingBalance)
+      // 2. Each day opens exactly where the previous one closed.
+      if (i > 0) expect(nav.openingBalance).toBe(navRows[i - 1].closingBalance)
+      // 3. Investors' P&L and values add up to the fund's, to the cent.
+      expect(round2(sum(rows.map(r => r.pnl)))).toBe(nav.pnl)
+      expect(round2(sum(rows.map(r => r.openingValue)))).toBe(nav.openingBalance)
+      expect(round2(sum(rows.map(r => r.closingValue)))).toBe(nav.closingBalance)
+      // 4. Shareholdings account for the whole fund.
+      if (nav.closingBalance !== 0) expect(sum(rows.map(r => r.closingSharePct))).toBe(1)
+      if (nav.openingBalance !== 0) expect(sum(rows.map(r => r.openingSharePct))).toBe(1)
+    })
+
+    return { navRows, ledgerRows }
+  }
+
+  it('holds for three investors splitting an amount that does not divide evenly', () => {
+    // $1,000 split three ways is $333.333...; rounded independently that comes
+    // to $999.99, and a cent goes missing from the fund every single day.
+    const flows = ['A', 'B', 'C'].map(id => flow('2024-01-01', id, 'DEPOSIT', 10000))
+    const { navRows, ledgerRows } = check([deal('2024-01-02', 1000, 1)], flows)
+
+    const day2 = ledgerRows.filter(r => r.date.getTime() === day('2024-01-02').getTime())
+    expect(day2.map(r => r.pnl).sort()).toEqual([333.33, 333.33, 333.34])
+    expect(navRows[1].pnl).toBe(1000)
+  })
+
+  it('holds across a long randomised run of deals, deposits and withdrawals', () => {
+    // Deterministic LCG — a fixed seed keeps failures reproducible.
+    let seed = 42
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648
+
+    const deals: LedgerDeal[] = []
+    const flows: LedgerFlow[] = []
+    for (let d = 0; d < 400; d++) {
+      const iso = new Date(Date.UTC(2024, 0, 1 + d)).toISOString().slice(0, 10)
+      if (rnd() < 0.75) deals.push(deal(iso, Math.round((rnd() - 0.48) * 800000) / 100, 1))
+      if (rnd() < 0.1) {
+        flows.push(
+          flow(iso, `I${Math.floor(rnd() * 8)}`, rnd() < 0.6 ? 'DEPOSIT' : 'WITHDRAWAL', Math.round(rnd() * 40000))
+        )
+      }
+    }
+
+    const { navRows, ledgerRows } = check(deals, flows)
+    expect(navRows.length).toBeGreaterThan(300)
+    // Nothing evaporates over the full period either.
+    expect(round2(ledgerRows.reduce((s, r) => s + r.pnl, 0))).toBe(
+      round2(navRows.reduce((s, r) => s + r.pnl, 0))
+    )
+  })
+
 })
 
 describe('compoundReturn', () => {
