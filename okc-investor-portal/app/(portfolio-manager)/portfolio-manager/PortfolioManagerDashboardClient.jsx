@@ -110,6 +110,10 @@ export default function PortfolioManagerDashboardClient({ name, funds, seriesByF
   const [selectedRange, setSelectedRange] = useState('ALL');
   const [fromDate, setFromDate] = useState(firstAvailableInput);
   const [toDate, setToDate] = useState(lastAvailableInput);
+  // Rich hover tooltip for the dashboard chart — same approach as the
+  // Performance page (onHoverPoint on PortfolioChart), instead of leaving it
+  // on Chart.js's default built-in tooltip (just a color swatch + one value).
+  const [hoveredPoint, setHoveredPoint] = useState(null);
  
   const handleFundChange = fundId => {
     setSelectedFundId(fundId);
@@ -276,7 +280,47 @@ export default function PortfolioManagerDashboardClient({ name, funds, seriesByF
                 </div>
               </div>
  
-              <PortfolioChart data={chartPoints.map(p => ({ date: p.date, value: p.portfolioValue, pnl: p.dailyPnL }))} />
+              <div className="relative">
+                <PortfolioChart
+                  data={chartPoints.map(p => ({ date: p.date, value: p.portfolioValue, pnl: p.dailyPnL }))}
+                  onHoverPoint={(index, x, y) => {
+                    setHoveredPoint(prev => {
+                      if (index === null) return prev === null ? prev : null;
+                      // Bail out on an identical re-fire (Chart.js's external
+                      // tooltip callback can re-run on redraw with no real
+                      // mouse movement) so this doesn't cascade into extra
+                      // renders — same guard Performance's chart uses.
+                      if (prev && prev.date === chartPoints[index].date && prev.caretX === x && prev.caretY === y) {
+                        return prev;
+                      }
+                      return { ...chartPoints[index], caretX: x, caretY: y };
+                    });
+                  }}
+                />
+                {hoveredPoint && (
+                  <div
+                    className="pointer-events-none absolute rounded-xl border border-gray-200 bg-white p-4 text-xs shadow-lg"
+                    style={{
+                      left: hoveredPoint.caretX,
+                      top: hoveredPoint.caretY,
+                      transform: 'translate(-50%, -110%)',
+                      // Chart.js's own built-in tooltip (used on the Investor
+                      // page) animates its position smoothly by default; this
+                      // custom tooltip has to opt into the same feel, or it
+                      // teleports between points instead of gliding —
+                      // especially obvious with few data points (e.g. 1W).
+                      transition: 'left 100ms ease-out, top 100ms ease-out',
+                    }}
+                  >
+                    <p className="mb-3 text-sm font-bold text-gray-900">{hoveredPoint.date}</p>
+                    <div className="space-y-2">
+                      <div className="flex min-w-56 justify-between gap-5"><span className="text-gray-500">Portfolio Value</span><span className="font-semibold tabular-nums text-gray-900">{formatCurrency(hoveredPoint.portfolioValue)}</span></div>
+                      <div className="flex justify-between gap-5"><span className="text-gray-500">Daily P&L</span><span className={`font-semibold tabular-nums ${valueTone(hoveredPoint.dailyPnL)}`}>{formatCurrency(hoveredPoint.dailyPnL)}</span></div>
+                      <div className="flex justify-between gap-5"><span className="text-gray-500">Fund Return</span><span className={`font-semibold tabular-nums ${valueTone(hoveredPoint.fundReturn)}`}>{formatPercent(hoveredPoint.fundReturn)}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
  
             <aside className="card p-5">
