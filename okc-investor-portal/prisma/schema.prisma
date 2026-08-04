@@ -38,8 +38,9 @@ model Investor {
   role           Role      @default(INVESTOR)
   onboardingDate DateTime  @default(now())
 
-  fundFlows FundFlow[]
-  ledger    InvestorDailyLedger[]
+  fundFlows   FundFlow[]
+  ledger      InvestorDailyLedger[]
+  preferences InvestorFundPreference[]
 
   @@map("investors")
 }
@@ -50,16 +51,49 @@ model Fund {
   name          String
   description   String?
   currency      String   @default("SGD")
-  riskLevel     String   @default("High")
   strategy      String?
   inceptionDate DateTime
 
-  deals     Deal[]
-  fundFlows FundFlow[]
-  dailyNav  FundDailyNav[]
-  ledger    InvestorDailyLedger[]
+  deals       Deal[]
+  fundFlows   FundFlow[]
+  dailyNav    FundDailyNav[]
+  ledger      InvestorDailyLedger[]
+  preferences InvestorFundPreference[]
 
   @@map("funds")
+}
+
+// 3.4: the investor's instruction for how aggressively a fund may invest their
+// money. Set per fund, not per request — an investor who tops up twice keeps
+// one standing tolerance for that fund. Risk is chosen by the investor; funds
+// deliberately carry no risk level of their own.
+//
+// Declared low -> high to match the physical order of the Postgres enum (the
+// values were renamed in place from CONSERVATIVE/BALANCED/AGGRESSIVE, which
+// fixes that order). The UI renders them high -> low; see lib/riskTolerance.ts.
+enum RiskTolerance {
+  LOW
+  MODERATE
+  HIGH
+}
+
+// 3.4: standing risk-tolerance instruction for one investor in one fund.
+// Captured when they deposit and editable afterwards; operations and the
+// portfolio manager read it to see the mandate they are trading under.
+model InvestorFundPreference {
+  id            String        @id @default(cuid())
+  investorId    String
+  fundId        String
+  riskTolerance RiskTolerance
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  investor Investor @relation(fields: [investorId], references: [id])
+  fund     Fund     @relation(fields: [fundId], references: [id])
+
+  @@unique([investorId, fundId])
+  @@index([fundId])
+  @@map("investor_fund_preferences")
 }
 
 enum FlowType {
@@ -106,6 +140,10 @@ model FundFlow {
   // e.g. a bank transaction ID or note — for ops to check before confirming
   // receipt. Free text, not a file upload.
   proofOfTransfer String?
+  // 3.4: the tolerance the investor selected on THIS request. The standing
+  // instruction lives in InvestorFundPreference; this is the snapshot, so ops
+  // reviewing a request see what was asked for at the time even if it changed.
+  riskTolerance   RiskTolerance?
 
   investor Investor @relation(fields: [investorId], references: [id])
   fund     Fund     @relation(fields: [fundId], references: [id])

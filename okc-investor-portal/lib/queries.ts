@@ -63,7 +63,6 @@ export type InvestorOverview = {
     code: string
     name: string
     currency: string
-    riskLevel: string
     strategy: string | null
     value: number
     pctOfPortfolio: number
@@ -142,7 +141,6 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     code: r.fund.code,
     name: r.fund.name,
     currency: r.fund.currency,
-    riskLevel: r.fund.riskLevel,
     strategy: r.fund.strategy,
     value: num(r.closingValue),
     pctOfPortfolio: last.value > 0 ? (num(r.closingValue) / last.value) * 100 : 0,
@@ -176,6 +174,34 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     series,
     allocation,
   }
+}
+
+// Every fund an investor could put money into. Deliberately excludes AUM,
+// P&L and other investors' holdings — an investor browsing what's on offer has
+// no business seeing the fund's book. Ops/admin surfaces use getFundTotals()
+// for that.
+export type AvailableFund = {
+  id: string
+  code: string
+  name: string
+  strategy: string | null
+  currency: string
+  inceptionDate: string
+}
+
+export async function getAvailableFunds(): Promise<AvailableFund[]> {
+  const funds = await prisma.fund.findMany({
+    orderBy: [{ inceptionDate: 'asc' }, { code: 'asc' }],
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      strategy: true,
+      currency: true,
+      inceptionDate: true,
+    },
+  })
+  return funds.map(f => ({ ...f, inceptionDate: f.inceptionDate.toISOString() }))
 }
 
 export type ReportData = {
@@ -330,7 +356,10 @@ export async function getStatementMonths(investorId: string) {
 
 export async function getFlowsForReview() {
   const flows = await prisma.fundFlow.findMany({
-    include: { investor: true, fund: true },
+    include: {
+      investor: { include: { preferences: true } },
+      fund: true,
+    },
     orderBy: { requestDate: 'desc' },
   })
   return flows.map(f => ({
@@ -348,6 +377,40 @@ export async function getFlowsForReview() {
     proofOfTransfer: f.proofOfTransfer,
     reviewedBy: f.reviewedBy,
     note: f.note,
+    // 3.4: what the investor asked for on THIS request, plus their standing
+    // instruction for the fund — they differ if the tolerance changed later.
+    riskTolerance: f.riskTolerance,
+    currentRiskTolerance:
+      f.investor.preferences.find(p => p.fundId === f.fundId)?.riskTolerance ?? null,
+  }))
+}
+
+// 3.4: every investor's standing risk tolerance, for the ops/PM directories.
+export type InvestorRiskMandate = {
+  investorId: string
+  investorName: string
+  investorEmail: string
+  fundId: string
+  fundCode: string
+  fundName: string
+  riskTolerance: string
+  updatedAt: string
+}
+
+export async function getRiskMandates(): Promise<InvestorRiskMandate[]> {
+  const prefs = await prisma.investorFundPreference.findMany({
+    include: { investor: true, fund: true },
+    orderBy: [{ investor: { name: 'asc' } }, { fund: { code: 'asc' } }],
+  })
+  return prefs.map(p => ({
+    investorId: p.investorId,
+    investorName: p.investor.name,
+    investorEmail: p.investor.email,
+    fundId: p.fundId,
+    fundCode: p.fund.code,
+    fundName: p.fund.name,
+    riskTolerance: p.riskTolerance,
+    updatedAt: p.updatedAt.toISOString(),
   }))
 }
 
@@ -422,7 +485,6 @@ export async function getFundTotals() {
       code: fund.code,
       name: fund.name,
       description: fund.description,
-      riskLevel: fund.riskLevel,
       strategy: fund.strategy,
       currency: fund.currency,
       inceptionDate: fund.inceptionDate.toISOString(),

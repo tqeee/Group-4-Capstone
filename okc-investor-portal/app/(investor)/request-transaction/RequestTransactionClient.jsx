@@ -2,6 +2,13 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { fmtDate, fmtMoney } from '@/lib/format';
+import {
+  RISK_TOLERANCES,
+  RISK_TOLERANCE_LABEL,
+  RISK_TOLERANCE_DESCRIPTION,
+  RISK_TOLERANCE_STYLE,
+  DEFAULT_RISK_TOLERANCE,
+} from '@/lib/riskTolerance';
 import { submitFlowRequest, submitProofOfTransfer } from './actions';
 
 function RequestTypeCard({ isSelected, label, description, onClick, children }) {
@@ -41,11 +48,25 @@ const statusStyle = {
 
 const TABS = ['All', 'Pending Transaction', 'Pending Receipt', 'Completed', 'Rejected'];
 
-export default function RequestTransactionClient({ requests, funds, minDeposit, minWithdrawal }) {
+export default function RequestTransactionClient({ requests, funds, riskByFund, minDeposit, minWithdrawal }) {
   const [activeTab, setActiveTab] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [requestType, setRequestType] = useState('deposit');
   const [state, formAction, isPending] = useActionState(submitFlowRequest, undefined);
+
+  // Controlled so changing fund can surface that fund's standing tolerance
+  // (3.4) — tolerance is per fund, so it has to follow the selection.
+  const prefs = riskByFund ?? {};
+  const [selectedFundId, setSelectedFundId] = useState(funds[0]?.id ?? '');
+  const [riskTolerance, setRiskTolerance] = useState(
+    prefs[funds[0]?.id] ?? DEFAULT_RISK_TOLERANCE
+  );
+
+  const handleFundChange = fundId => {
+    setSelectedFundId(fundId);
+    setRiskTolerance(prefs[fundId] ?? DEFAULT_RISK_TOLERANCE);
+  };
+  const hasExistingTolerance = Boolean(prefs[selectedFundId]);
 
   const [submittingProofFor, setSubmittingProofFor] = useState(null); // request awaiting proof submission
   const [proofState, proofFormAction, isProofPending] = useActionState(submitProofOfTransfer, undefined);
@@ -225,9 +246,12 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-blue-950/20">
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 px-4 py-6 backdrop-blur-sm">
+          {/* Capped to the viewport with only the form body scrolling, so the
+              header and the submit buttons stay put no matter how tall the
+              form gets (the risk-tolerance options push it past one screen). */}
+          <div className="flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-blue-950/20">
+            <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-6 py-5">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-blue-600">New Request</p>
                 <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900">New Fund Flow Request</h2>
@@ -244,9 +268,9 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
               </button>
             </div>
 
-            <form action={formAction}>
+            <form action={formAction} className="flex min-h-0 flex-1 flex-col">
               <input type="hidden" name="type" value={requestType} />
-              <div className="space-y-6 px-6 py-6">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6">
                 <div>
                   <p className="mb-3 text-sm font-semibold text-gray-600">Request Type</p>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -277,7 +301,8 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
                   <span className="mb-2 block text-sm font-semibold text-gray-600">Fund</span>
                   <select
                     name="fundId"
-                    defaultValue={funds[0]?.id}
+                    value={selectedFundId}
+                    onChange={e => handleFundChange(e.target.value)}
                     className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm font-semibold text-gray-900 outline-none transition focus:border-blue-500 focus:bg-white"
                   >
                     {funds.map(fund => (
@@ -287,6 +312,55 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
                     ))}
                   </select>
                 </label>
+
+                {/* 3.4: how aggressively this fund may invest the investor's
+                    money. Deposits only — it's an instruction about managing
+                    money going in, not about taking money out. */}
+                {requestType === 'deposit' && (
+                  <div>
+                    <span className="mb-2 block text-sm font-semibold text-gray-600">
+                      Risk tolerance for this fund
+                    </span>
+                    <div className="space-y-2">
+                      {RISK_TOLERANCES.map(level => (
+                        <label
+                          key={level}
+                          className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition ${
+                            riskTolerance === level
+                              ? 'border-blue-600 bg-blue-50'
+                              : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50/40'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="riskTolerance"
+                            value={level}
+                            checked={riskTolerance === level}
+                            onChange={() => setRiskTolerance(level)}
+                            className="mt-1 h-4 w-4 accent-blue-600"
+                          />
+                          <span>
+                            {/* Traffic-light coded so the level reads at a
+                                glance: red high, amber moderate, green low. */}
+                            <span
+                              className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${RISK_TOLERANCE_STYLE[level]}`}
+                            >
+                              {RISK_TOLERANCE_LABEL[level]}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-gray-400">
+                              {RISK_TOLERANCE_DESCRIPTION[level]}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-400">
+                      {hasExistingTolerance
+                        ? 'This is your current instruction for this fund. Changing it here updates it.'
+                        : 'Applies to this fund only — you can set a different tolerance for each fund.'}
+                    </p>
+                  </div>
+                )}
 
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-gray-600">Amount (SGD)</span>
@@ -317,7 +391,7 @@ export default function RequestTransactionClient({ requests, funds, minDeposit, 
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50 px-6 py-5">
+              <div className="grid flex-shrink-0 grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50 px-6 py-5">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

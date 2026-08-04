@@ -212,8 +212,7 @@ export default function FundDetailModal({ fund, series, onClose }) {
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-gray-900">{fund.name}</h2>
               <p className="mt-0.5 text-xs text-gray-400">
-                {fund.code} · {fund.currency} · {fund.riskLevel} risk · since{' '}
-                {fmtDate(fund.inceptionDate)}
+                {fund.code} · {fund.currency} · since {fmtDate(fund.inceptionDate)}
               </p>
             </div>
           </div>

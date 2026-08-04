@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth/guards'
 import { audit } from '@/lib/audit'
-import { FUND_CURRENCIES, FUND_RISK_LEVELS } from './constants'
+import { FUND_CURRENCIES } from './constants'
 
 export type CreateFundState =
   | { status: 'success'; message: string }
@@ -36,11 +36,6 @@ export async function createFund(
     return { status: 'error', message: 'Please choose a valid currency.' }
   }
 
-  const riskLevel = String(formData.get('riskLevel') ?? '')
-  if (!FUND_RISK_LEVELS.includes(riskLevel as (typeof FUND_RISK_LEVELS)[number])) {
-    return { status: 'error', message: 'Please choose a valid risk level.' }
-  }
-
   const inceptionRaw = String(formData.get('inceptionDate') ?? '').trim()
   const inceptionDate = new Date(`${inceptionRaw}T00:00:00Z`)
   if (
@@ -64,7 +59,6 @@ export async function createFund(
         code,
         name,
         currency,
-        riskLevel,
         inceptionDate,
         strategy: strategy || null,
         description: description || null,
@@ -79,7 +73,7 @@ export async function createFund(
 
   await audit('FUND_CREATED', {
     actor: guard.email,
-    detail: `${code} — ${name} (${currency}, ${riskLevel} risk)`,
+    detail: `${code} — ${name} (${currency})`,
   })
 
   // Funds are listed on all of these.
