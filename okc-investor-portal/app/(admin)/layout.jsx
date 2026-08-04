@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }) {
       email={email}
       roleLabel="Administrator"
       badge="Admin"
-      brandLetter="A"
+      role="admin"
       navItems={navItems}
     >
       {children}

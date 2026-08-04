@@ -7,6 +7,12 @@ import { getInvestorByAuth } from '@/lib/queries'
 import { getSettings } from '@/lib/settings'
 import { audit } from '@/lib/audit'
 import { fmtMoney } from '@/lib/format'
+import {
+  DEFAULT_RISK_TOLERANCE,
+  RISK_TOLERANCE_LABEL,
+  isRiskTolerance,
+  type RiskToleranceValue,
+} from '@/lib/riskTolerance'
 
 export type SubmitFlowState =
   | { status: 'success'; message: string }
@@ -48,6 +54,25 @@ export async function submitFlowRequest(
     return { status: 'error', message: 'That fund no longer exists.' }
   }
 
+  // 3.4: risk tolerance applies to depositing INTO a fund — it's an
+  // instruction about how the money should be managed, so it's not collected
+  // on a withdrawal. If the investor already has a standing tolerance for this
+  // fund and the form didn't send one, keep what's on file.
+  const toleranceInput = formData.get('riskTolerance')
+  let riskTolerance: RiskToleranceValue | null = null
+  if (typeInput === 'deposit') {
+    if (isRiskTolerance(toleranceInput)) {
+      riskTolerance = toleranceInput
+    } else if (toleranceInput != null && toleranceInput !== '') {
+      return { status: 'error', message: 'Please choose a valid risk tolerance.' }
+    } else {
+      const existing = await prisma.investorFundPreference.findUnique({
+        where: { investorId_fundId: { investorId: investor.id, fundId } },
+      })
+      riskTolerance = existing?.riskTolerance ?? DEFAULT_RISK_TOLERANCE
+    }
+  }
+
   const settings = await getSettings()
   const min = Number(typeInput === 'deposit' ? settings.minDeposit : settings.minWithdrawal)
   if (amount < min) {
@@ -85,19 +110,39 @@ export async function submitFlowRequest(
       type: typeInput === 'deposit' ? 'DEPOSIT' : 'WITHDRAWAL',
       amount,
       currency: fund.currency,
+      riskTolerance,
     },
   })
 
+  // Record the standing instruction for this fund, not just the snapshot on
+  // the request — a later top-up with no explicit choice inherits it, and ops
+  // and the portfolio manager read it to see the mandate they trade under.
+  if (riskTolerance) {
+    await prisma.investorFundPreference.upsert({
+      where: { investorId_fundId: { investorId: investor.id, fundId } },
+      update: { riskTolerance },
+      create: { investorId: investor.id, fundId, riskTolerance },
+    })
+  }
+
   await audit('FLOW_SUBMITTED', {
     actor: investor.email,
-    detail: `${typeInput} ${fmtMoney(amount)} (${flow.id})`,
+    detail:
+      `${typeInput} ${fmtMoney(amount)} into ${fund.name} (${flow.id})` +
+      (riskTolerance ? ` · risk tolerance ${RISK_TOLERANCE_LABEL[riskTolerance]}` : ''),
   })
 
   revalidatePath('/request-transaction')
   revalidatePath('/ops-transactions')
+  revalidatePath('/funds')
+  revalidatePath('/investors')
   return {
     status: 'success',
-    message: `Your ${typeInput} request for ${fmtMoney(amount)} has been submitted for review.`,
+    message:
+      `Your ${typeInput} request for ${fmtMoney(amount)} has been submitted for review.` +
+      (riskTolerance
+        ? ` Risk tolerance for ${fund.name} set to ${RISK_TOLERANCE_LABEL[riskTolerance]}.`
+        : ''),
   }
 }
 

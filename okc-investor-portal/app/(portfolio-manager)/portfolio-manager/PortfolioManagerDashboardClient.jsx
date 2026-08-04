@@ -64,6 +64,9 @@ export default function PortfolioManagerDashboardClient({ name, funds, seriesByF
   const [selectedFundId, setSelectedFundId] = useState(defaultFundId);
   const fundDetails = funds.find(f => f.id === selectedFundId) ?? null;
   const totalAum = funds.reduce((s, f) => s + f.aum, 0);
+  // Hovering an allocation table row highlights its ring segment by dimming
+  // the rest, rather than duplicating the % as a floating label on the ring.
+  const [hoveredFundId, setHoveredFundId] = useState(null);
  
   // Every fund's share of total AUM — scales automatically to however many
   // funds actually exist, rather than a hardcoded "this fund vs the rest".
@@ -421,72 +424,89 @@ export default function PortfolioManagerDashboardClient({ name, funds, seriesByF
             </div>
  
             <aside className="card p-5">
-              <p className="section-label mb-1">AUM SHARE</p>
-              <h2 className="text-lg font-bold text-gray-900">Fund Allocation</h2>
-              <div className="mt-6 flex flex-col items-center">
-                {/* Sizing math: ring radius 80px + a 20px minimum visual gap +
-                    half the label's own width (50px, since a label sitting
-                    directly left/right of the ring is as close as its width
-                    allows, not just its distance from center) = labelRadius
-                    of 155px keeps every label clear of the ring regardless
-                    of angle or how many digits the amounts grow to. */}
-                <div className="relative mx-auto mb-4" style={{ width: 420, height: 420 }}>
-                  {/* Donut ring, centered within the larger label area */}
-                  <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="section-label mb-1">AUM SHARE</p>
+                  <h2 className="text-lg font-bold text-gray-900">Fund Allocation</h2>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-xs text-gray-400">Total AUM</p>
+                  <p className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(totalAum)}</p>
+                </div>
+              </div>
+
+              {totalAum <= 0 ? (
+                <p className="py-10 text-center text-sm text-gray-400">No AUM yet.</p>
+              ) : (
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-8">
+                  {/* Donut — a visual summary only; the actual numbers live
+                      once, in the table beside it. Hovering a row dims every
+                      other segment instead of labelling the ring directly. */}
+                  <div className="relative mx-auto shrink-0 sm:mx-0" style={{ width: 168, height: 168 }}>
                     <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 42 42">
                       {allocationSegments.map(segment => (
                         <circle
                           key={segment.fund.id}
                           cx="21" cy="21" r="15.915" fill="transparent"
                           stroke={segment.color} strokeWidth="4"
+                          strokeOpacity={hoveredFundId && hoveredFundId !== segment.fund.id ? 0.2 : 1}
                           strokeDasharray={`${segment.pct} ${100 - segment.pct}`}
                           strokeDashoffset={100 - segment.start}
+                          className="transition-opacity duration-150"
                         />
                       ))}
                     </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
-                      <p className="text-xs text-gray-400">TOTAL</p>
-                      <p className="text-base font-bold leading-tight text-gray-900 tabular-nums">{formatCompactCurrency(totalAum)}</p>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Total</p>
+                      <p className="text-lg font-bold leading-tight text-gray-900 tabular-nums">{formatCompactCurrency(totalAum)}</p>
                     </div>
                   </div>
- 
-                  {/* Percentage + amount labels at each segment's midpoint
-                      angle (0% = top, clockwise). */}
-                  {allocationSegments.map(segment => {
-                    const midpointPct = segment.start + segment.pct / 2;
-                    const angle = (midpointPct / 100) * 2 * Math.PI;
-                    const labelRadius = 155;
-                    const x = 210 + labelRadius * Math.sin(angle);
-                    const y = 210 - labelRadius * Math.cos(angle);
-                    return (
-                      <div
-                        key={segment.fund.id}
-                        className="absolute text-center"
-                        style={{ left: x, top: y, transform: 'translate(-50%, -50%)', width: 100 }}
-                      >
-                        <p className="text-sm font-bold text-gray-900 tabular-nums">{segment.pct.toFixed(0)}%</p>
-                        <p className="text-xs text-gray-500 leading-tight tabular-nums">{formatCurrency(segment.fund.aum)}</p>
-                      </div>
-                    );
-                  })}
+
+                  {/* Allocation table — the legend. One row per fund covers
+                      identity, amount, and share; zero-AUM funds are muted so
+                      the eye lands on what actually matters first. */}
+                  <div className="w-full flex-1 sm:border-l sm:border-gray-100 sm:pl-8">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
+                          <th className="pb-2 text-left font-semibold">Fund</th>
+                          <th className="pb-2 text-right font-semibold">Amount</th>
+                          <th className="pb-2 text-right font-semibold">%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allocationSegments.map(segment => {
+                          const isZero = segment.fund.aum <= 0;
+                          return (
+                            <tr
+                              key={segment.fund.id}
+                              onMouseEnter={() => setHoveredFundId(segment.fund.id)}
+                              onMouseLeave={() => setHoveredFundId(null)}
+                              className="border-b border-gray-50 transition last:border-0 hover:bg-blue-50/40"
+                            >
+                              <td className="py-2.5">
+                                <span className="flex min-w-0 items-center gap-2">
+                                  <span className={`h-2 w-2 shrink-0 rounded-full ${isZero ? 'bg-gray-200' : segment.dotClass}`} />
+                                  <span className={`truncate font-medium ${isZero ? 'text-gray-400' : 'text-gray-700'}`}>
+                                    {segment.fund.name}
+                                  </span>
+                                </span>
+                              </td>
+                              <td className={`py-2.5 text-right tabular-nums ${isZero ? 'text-gray-300' : 'text-gray-600'}`}>
+                                {formatCurrency(segment.fund.aum)}
+                              </td>
+                              <td className={`py-2.5 text-right font-semibold tabular-nums ${isZero ? 'text-gray-300' : 'text-gray-900'}`}>
+                                {segment.pct.toFixed(0)}%
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
- 
-                <div className="w-full flex flex-col gap-3">
-                  {allocationSegments.map(segment => (
-                    <div key={segment.fund.id} className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full ${segment.dotClass} shrink-0`}></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">{segment.fund.name}</p>
-                          <p className="text-sm text-gray-400 tabular-nums">{formatCurrency(segment.fund.aum)}</p>
-                        </div>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-900 tabular-nums">{segment.pct.toFixed(0)}%</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-6 text-xs text-gray-400 self-start">As of {lastRow?.date || 'No data'}</p>
-              </div>
+              )}
+              <p className="mt-4 text-xs text-gray-400">As of {lastRow?.date || 'No data'}</p>
             </aside>
           </div>
         </>

@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from 'react';
 import StatusBadge from '@/components/operations/StatusBadge';
 import { fmtDate, fmtMoney } from '@/lib/format';
+import { RISK_TOLERANCE_STYLE, riskToleranceLabel } from '@/lib/riskTolerance';
 import { reviewFlow, confirmReceipt } from './actions';
 
 const FILTERS = ['All', 'Pending Transaction', 'Pending Receipt', 'Completed', 'Rejected'];
@@ -206,6 +207,39 @@ export default function OpsTransactionsClient({ flows, largeThreshold }) {
                 Approving will email bank transfer details to the investor. The fund ledger
                 won&apos;t be updated until you confirm receipt of their transfer.
               </p>
+            )}
+
+            {/* 3.4: the mandate this money is to be managed under. Shown at the
+                point of approval so ops act on it rather than discovering it
+                later. `riskTolerance` is what the investor chose on this
+                request; `currentRiskTolerance` is their standing instruction —
+                they differ only if it was changed after submitting. */}
+            {(reviewing.riskTolerance || reviewing.currentRiskTolerance) && (
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Investor risk tolerance
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      RISK_TOLERANCE_STYLE[reviewing.riskTolerance ?? reviewing.currentRiskTolerance] ??
+                      'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {riskToleranceLabel(reviewing.riskTolerance ?? reviewing.currentRiskTolerance)}
+                  </span>
+                  <span className="text-gray-500">for {reviewing.fund}</span>
+                </div>
+                {reviewing.riskTolerance &&
+                  reviewing.currentRiskTolerance &&
+                  reviewing.riskTolerance !== reviewing.currentRiskTolerance && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      Requested as {riskToleranceLabel(reviewing.riskTolerance)}, but their standing
+                      instruction for this fund is now{' '}
+                      {riskToleranceLabel(reviewing.currentRiskTolerance)}.
+                    </p>
+                  )}
+              </div>
             )}
 
             {reviewing.note && (

@@ -89,7 +89,6 @@ async function main() {
       name: 'OKC Alpha Fund',
       description: 'Systematic momentum strategy executed by an expert advisor.',
       currency: 'SGD',
-      riskLevel: 'High',
       strategy: 'Expert Advisor · Systematic momentum',
       inceptionDate: new Date('2026-03-17T00:00:00Z'),
     },

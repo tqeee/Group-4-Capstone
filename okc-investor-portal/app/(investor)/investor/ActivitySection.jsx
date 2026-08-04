@@ -11,7 +11,9 @@ const statusStyle = {
   Rejected: 'bg-red-50 text-red-500',
 };
 
-export default function ActivityClient({ items }) {
+// Was the standalone /activity page (see CLAUDE.md Done #37) — same content,
+// folded in as a section of the main dashboard instead of a separate route.
+export default function ActivitySection({ items }) {
   const [activeFilter, setActiveFilter] = useState('All');
   const [sortBy, setSortBy] = useState('date-desc');
 
@@ -38,47 +40,50 @@ export default function ActivityClient({ items }) {
     });
   }, [items, activeFilter, sortBy]);
 
+  if (items.length === 0) return null;
+
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="page-title">Activity</h1>
-        <p className="page-subtitle">All transactions and daily P&L updates across your funds.</p>
-      </div>
+    <div className="card p-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+        <div>
+          <p className="section-label mb-1">ACTIVITY</p>
+          <h2 className="text-lg font-bold text-gray-900">Recent activity</h2>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="flex flex-wrap gap-2">
+            {filters.map(f => (
+              <button
+                key={f}
+                onClick={() => setActiveFilter(f)}
+                className={`pill whitespace-nowrap ${activeFilter === f ? 'pill-active' : 'pill-inactive'}`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div className="flex flex-wrap gap-2">
-          {filters.map(f => (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`pill whitespace-nowrap ${activeFilter === f ? 'pill-active' : 'pill-inactive'}`}
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <label htmlFor="activitySortBy" className="text-xs font-semibold text-gray-400 tracking-wider uppercase whitespace-nowrap">
+              Sort By:
+            </label>
+            <select
+              id="activitySortBy"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <label htmlFor="sortBy" className="text-xs font-semibold text-gray-400 tracking-wider uppercase whitespace-nowrap">
-            Sort By:
-          </label>
-          <select
-            id="sortBy"
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-          >
-            <option value="date-desc">Recent Date</option>
-            <option value="date-asc">Oldest Date</option>
-            <option value="amount-desc">Amount: High to Low</option>
-            <option value="amount-asc">Amount: Low to High</option>
-            <option value="fund-az">Fund Name: A to Z</option>
-            <option value="fund-za">Fund Name: Z to A</option>
-          </select>
+              <option value="date-desc">Recent Date</option>
+              <option value="date-asc">Oldest Date</option>
+              <option value="amount-desc">Amount: High to Low</option>
+              <option value="amount-asc">Amount: Low to High</option>
+              <option value="fund-az">Fund Name: A to Z</option>
+              <option value="fund-za">Fund Name: Z to A</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="rounded-xl border border-gray-100 overflow-hidden">
         <div className="w-full overflow-x-auto">
           <table className="w-full min-w-[800px]">
             <thead>

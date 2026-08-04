@@ -31,6 +31,7 @@ type Snapshot = {
   days: number
   aum: number
   totalPnl: number
+  totalManagementFee: number
   returnPct: number
   problems: string[]
 }
@@ -79,6 +80,10 @@ async function snapshot(): Promise<Snapshot[]> {
       if (round2(sum(rows.map(r => n(r.pnl)))) !== pnl) {
         note(`${date}: investor P&L sums to ${money(round2(sum(rows.map(r => n(r.pnl)))))}, fund P&L is ${money(pnl)}`)
       }
+      const managementFee = n(row.managementFee)
+      if (round2(sum(rows.map(r => n(r.managementFee)))) !== managementFee) {
+        note(`${date}: investor management fee sums to ${money(round2(sum(rows.map(r => n(r.managementFee)))))}, fund management fee is ${money(managementFee)}`)
+      }
       if (round2(sum(rows.map(r => n(r.closingValue)))) !== closing) {
         note(`${date}: investor values sum to ${money(round2(sum(rows.map(r => n(r.closingValue)))))}, fund closing is ${money(closing)}`)
       }
@@ -96,6 +101,7 @@ async function snapshot(): Promise<Snapshot[]> {
       days: nav.length,
       aum: nav.length > 0 ? n(nav[nav.length - 1].closingBalance) : 0,
       totalPnl: nav.reduce((s, d) => s + n(d.pnl), 0),
+      totalManagementFee: nav.reduce((s, d) => s + n(d.managementFee), 0),
       returnPct: (factor - 1) * 100,
       problems,
     })
@@ -117,6 +123,7 @@ function report(title: string, snaps: Snapshot[], before?: Snapshot[]) {
     console.log(`  days recorded  ${s.days}${prev && prev.days !== s.days ? `  (was ${prev.days})` : ''}`)
     console.log(`  AUM            ${money(s.aum)}${delta(s.aum, prev?.aum)}`)
     console.log(`  total P&L      ${money(s.totalPnl)}${delta(s.totalPnl, prev?.totalPnl)}`)
+    console.log(`  management fee ${money(s.totalManagementFee)}${delta(s.totalManagementFee, prev?.totalManagementFee)}`)
     console.log(`  fund return    ${s.returnPct.toFixed(4)}%${prev && round8(prev.returnPct) !== round8(s.returnPct) ? `  (was ${prev.returnPct.toFixed(4)}%)` : ''}`)
 
     if (s.problems.length === 0) {

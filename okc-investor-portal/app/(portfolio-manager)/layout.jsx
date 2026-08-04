@@ -16,7 +16,7 @@ export default async function PortfolioManagerLayout({ children }) {
       email={email}
       roleLabel="Portfolio Manager"
       badge="Portfolio Manager"
-      brandLetter="P"
+      role="portfolio-manager"
       navItems={navItems}
       searchPath="/port-investors"
       searchPlaceholder="Search funds, investors..."

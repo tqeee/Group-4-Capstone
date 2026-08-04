@@ -24,6 +24,94 @@ const FLOW_STATUS_LABEL: Record<string, string> = {
 const flowStatusLabel = (status: string) => FLOW_STATUS_LABEL[status] ?? status
 
 // ---------------------------------------------------------------------------
+// Shared per-fund daily aggregation
+// ---------------------------------------------------------------------------
+
+type DailyLedgerRow = {
+  fundId: string
+  date: Date
+  openingValue: unknown
+  pnl: unknown
+  managementFee: unknown
+  closingValue: unknown
+  updatedAt: Date
+}
+
+// A fund's ledger only gets a new row on a day it trades, receives a flow,
+// or accrues a management fee (lib/ledger.ts's day-walk stops once a fund
+// has no more of any of those) — it doesn't cease to exist between rows.
+// Naively summing whichever rows exist on each calendar day therefore drops
+// a fund's true current value the moment its OWN data goes quiet, even
+// though another fund the same investor holds is still updating daily: the
+// quiet fund's contribution silently vanishes from the portfolio total,
+// which reads as the money disappearing (see CLAUDE.md Done #39).
+//
+// This forward-fills VALUE per fund across every day ANY fund has a row on.
+// pnl/managementFee/opening are NOT forward-filled — those are real per-day
+// activity, and a fund that didn't do anything today honestly contributes 0
+// to them, which is correct (a quiet day isn't a phantom gain or loss).
+function dailyPortfolioSeries(rows: DailyLedgerRow[]) {
+  const rowsByFund = new Map<string, DailyLedgerRow[]>()
+  for (const r of rows) {
+    const list = rowsByFund.get(r.fundId) ?? []
+    list.push(r)
+    rowsByFund.set(r.fundId, list)
+  }
+  for (const list of rowsByFund.values()) list.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+  const allDates = [...new Set(rows.map(r => r.date.getTime()))].sort((a, b) => a - b)
+
+  const nextIdx = new Map<string, number>()
+  const lastRow = new Map<string, DailyLedgerRow>()
+  const days: [number, { value: number; pnl: number; managementFee: number; opening: number; updatedAt: Date }][] = []
+
+  for (const t of allDates) {
+    let value = 0
+    let pnl = 0
+    let managementFee = 0
+    let opening = 0
+    let updatedAt = new Date(0)
+
+    for (const [fundId, list] of rowsByFund) {
+      let idx = nextIdx.get(fundId) ?? 0
+      while (idx < list.length && list[idx].date.getTime() <= t) {
+        lastRow.set(fundId, list[idx])
+        idx++
+      }
+      nextIdx.set(fundId, idx)
+
+      const row = lastRow.get(fundId)
+      if (!row) continue // this fund hadn't started investing yet as of this day
+      value += num(row.closingValue)
+
+      if (row.date.getTime() === t) {
+        pnl += num(row.pnl)
+        managementFee += num(row.managementFee)
+        opening += num(row.openingValue)
+        if (row.updatedAt > updatedAt) updatedAt = row.updatedAt
+      }
+    }
+
+    days.push([t, { value, pnl, managementFee, opening, updatedAt }])
+  }
+
+  return days
+}
+
+// Each fund's own most recent row — independent of whether that day also
+// happens to be the portfolio's overall most recent day. A holdings
+// breakdown or "your funds" list must never drop a fund just because
+// another fund the investor holds has fresher data.
+function latestRowPerFund<T extends { fundId: string; date: Date }>(rows: T[]): T[] {
+  const latest = new Map<string, T>()
+  for (const r of rows) {
+    const existing = latest.get(r.fundId)
+    if (!existing || r.date.getTime() > existing.date.getTime()) latest.set(r.fundId, r)
+  }
+  return [...latest.values()]
+}
+
+// ---------------------------------------------------------------------------
 // Investor profile
 // ---------------------------------------------------------------------------
 
@@ -59,13 +147,16 @@ export type InvestorOverview = {
   inceptionPct: number
   inceptionDate: string | null
   grossDeposits: number
+  // Management fee, shown separately from the *Pnl figures above (which
+  // already have it netted in, unchanged) so investors can see the
+  // deduction explicitly rather than it being invisible inside P&L.
+  inceptionManagementFee: number
   series: { date: string; value: number }[]
   allocation: {
     fundId: string
     code: string
     name: string
     currency: string
-    riskLevel: string
     strategy: string | null
     value: number
     pctOfPortfolio: number
@@ -93,22 +184,12 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   const empty: InvestorOverview = {
     hasData: false, asOf: null, asOfComputedAt: null, totalValue: 0, dayPnl: 0, dayPct: 0, mtdPnl: 0,
     mtdPct: 0, ytdPnl: 0, ytdPct: 0, inceptionPnl: 0, inceptionPct: 0, inceptionDate: null,
-    grossDeposits: num(deposits._sum.amount ?? 0), series: [], allocation: [],
+    grossDeposits: num(deposits._sum.amount ?? 0), inceptionManagementFee: 0, series: [], allocation: [],
   }
   if (rows.length === 0) return empty
 
-  // Daily series (portfolio value across funds).
-  const byDay = new Map<number, { value: number; pnl: number; opening: number; updatedAt: Date }>()
-  for (const r of rows) {
-    const t = r.date.getTime()
-    const agg = byDay.get(t) ?? { value: 0, pnl: 0, opening: 0, updatedAt: r.updatedAt }
-    agg.value += num(r.closingValue)
-    agg.pnl += num(r.pnl)
-    agg.opening += num(r.openingValue)
-    if (r.updatedAt > agg.updatedAt) agg.updatedAt = r.updatedAt
-    byDay.set(t, agg)
-  }
-  const days = [...byDay.entries()].sort((a, b) => a[0] - b[0])
+  // Daily series (portfolio value across funds, forward-filled per fund).
+  const days = dailyPortfolioSeries(rows)
   const series = days.map(([t, d]) => ({ date: new Date(t).toISOString(), value: d.value }))
 
   const [lastT, last] = days[days.length - 1]
@@ -131,10 +212,13 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
   const ytdPnl = ytdDays.reduce((s, [, d]) => s + d.pnl, 0)
 
   const inceptionPnl = days.reduce((s, [, d]) => s + d.pnl, 0)
+  const inceptionManagementFee = days.reduce((s, [, d]) => s + d.managementFee, 0)
   const grossDeposits = num(deposits._sum.amount ?? 0)
 
-  // Latest per-fund breakdown.
-  const latestRows = rows.filter(r => r.date.getTime() === lastT)
+  // Latest per-fund breakdown — each fund's OWN latest row, not just
+  // whichever rows happen to fall on the portfolio's single most recent day
+  // (see dailyPortfolioSeries above for why those can differ).
+  const latestRows = latestRowPerFund(rows)
   const perFund = new Map<string, { day: number; mtd: number; ytd: number; inception: number }>()
   for (const r of rows) {
     const agg = perFund.get(r.fundId) ?? { day: 0, mtd: 0, ytd: 0, inception: 0 }
@@ -150,7 +234,6 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     code: r.fund.code,
     name: r.fund.name,
     currency: r.fund.currency,
-    riskLevel: r.fund.riskLevel,
     strategy: r.fund.strategy,
     value: num(r.closingValue),
     pctOfPortfolio: last.value > 0 ? (num(r.closingValue) / last.value) * 100 : 0,
@@ -184,9 +267,38 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     inceptionPct: grossDeposits > 0 ? (inceptionPnl / grossDeposits) * 100 : 0,
     inceptionDate: new Date(days[0][0]).toISOString(),
     grossDeposits,
+    inceptionManagementFee,
     series,
     allocation,
   }
+}
+
+// Every fund an investor could put money into. Deliberately excludes AUM,
+// P&L and other investors' holdings — an investor browsing what's on offer has
+// no business seeing the fund's book. Ops/admin surfaces use getFundTotals()
+// for that.
+export type AvailableFund = {
+  id: string
+  code: string
+  name: string
+  strategy: string | null
+  currency: string
+  inceptionDate: string
+}
+
+export async function getAvailableFunds(): Promise<AvailableFund[]> {
+  const funds = await prisma.fund.findMany({
+    orderBy: [{ inceptionDate: 'asc' }, { code: 'asc' }],
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      strategy: true,
+      currency: true,
+      inceptionDate: true,
+    },
+  })
+  return funds.map(f => ({ ...f, inceptionDate: f.inceptionDate.toISOString() }))
 }
 
 export type ReportData = {
@@ -196,11 +308,12 @@ export type ReportData = {
     startValue: number
     endValue: number
     totalPnl: number
+    managementFee: number // already netted into totalPnl; broken out for display
     returnPct: number // compounded fund return for the month
     wins: number
     losses: number
   }[]
-  daily: { date: string; pnl: number; value: number; changePct: number }[]
+  daily: { date: string; pnl: number; managementFee: number; value: number; changePct: number }[]
   fundReturnPct: number // compounded since inception (8.2 ii)
 }
 
@@ -211,21 +324,15 @@ export async function getInvestorReports(investorId: string): Promise<ReportData
   })
   if (rows.length === 0) return { monthly: [], daily: [], fundReturnPct: 0 }
 
-  // Aggregate across funds per day.
-  const byDay = new Map<number, { pnl: number; value: number; opening: number }>()
-  for (const r of rows) {
-    const t = r.date.getTime()
-    const agg = byDay.get(t) ?? { pnl: 0, value: 0, opening: 0 }
-    agg.pnl += num(r.pnl)
-    agg.value += num(r.closingValue)
-    agg.opening += num(r.openingValue)
-    byDay.set(t, agg)
-  }
-  const days = [...byDay.entries()].sort((a, b) => a[0] - b[0])
+  // Aggregate across funds per day, value forward-filled per fund (see
+  // dailyPortfolioSeries — without it, a fund whose data goes quiet drops
+  // out of "value" entirely instead of holding its last known figure).
+  const days = dailyPortfolioSeries(rows)
 
   const daily = days.map(([t, d]) => ({
     date: new Date(t).toISOString(),
     pnl: d.pnl,
+    managementFee: d.managementFee,
     value: d.value,
     changePct: d.opening > 0 ? (d.pnl / d.opening) * 100 : 0,
   }))
@@ -248,6 +355,7 @@ export async function getInvestorReports(investorId: string): Promise<ReportData
         startValue: monthDays[0][1].opening,
         endValue: monthDays[monthDays.length - 1][1].value,
         totalPnl: monthDays.reduce((s, [, d]) => s + d.pnl, 0),
+        managementFee: monthDays.reduce((s, [, d]) => s + d.managementFee, 0),
         returnPct:
           compoundReturn(monthDays.map(([, d]) => ({ openingBalance: d.opening, pnl: d.pnl }))) * 100,
         wins: traded.filter(([, d]) => d.pnl > 0).length,
@@ -341,7 +449,10 @@ export async function getStatementMonths(investorId: string) {
 
 export async function getFlowsForReview() {
   const flows = await prisma.fundFlow.findMany({
-    include: { investor: true, fund: true },
+    include: {
+      investor: { include: { preferences: true } },
+      fund: true,
+    },
     orderBy: { requestDate: 'desc' },
   })
   return flows.map(f => ({
@@ -359,6 +470,40 @@ export async function getFlowsForReview() {
     proofOfTransfer: f.proofOfTransfer,
     reviewedBy: f.reviewedBy,
     note: f.note,
+    // 3.4: what the investor asked for on THIS request, plus their standing
+    // instruction for the fund — they differ if the tolerance changed later.
+    riskTolerance: f.riskTolerance,
+    currentRiskTolerance:
+      f.investor.preferences.find(p => p.fundId === f.fundId)?.riskTolerance ?? null,
+  }))
+}
+
+// 3.4: every investor's standing risk tolerance, for the ops/PM directories.
+export type InvestorRiskMandate = {
+  investorId: string
+  investorName: string
+  investorEmail: string
+  fundId: string
+  fundCode: string
+  fundName: string
+  riskTolerance: string
+  updatedAt: string
+}
+
+export async function getRiskMandates(): Promise<InvestorRiskMandate[]> {
+  const prefs = await prisma.investorFundPreference.findMany({
+    include: { investor: true, fund: true },
+    orderBy: [{ investor: { name: 'asc' } }, { fund: { code: 'asc' } }],
+  })
+  return prefs.map(p => ({
+    investorId: p.investorId,
+    investorName: p.investor.name,
+    investorEmail: p.investor.email,
+    fundId: p.fundId,
+    fundCode: p.fund.code,
+    fundName: p.fund.name,
+    riskTolerance: p.riskTolerance,
+    updatedAt: p.updatedAt.toISOString(),
   }))
 }
 
@@ -433,7 +578,6 @@ export async function getFundTotals() {
       code: fund.code,
       name: fund.name,
       description: fund.description,
-      riskLevel: fund.riskLevel,
       strategy: fund.strategy,
       currency: fund.currency,
       inceptionDate: fund.inceptionDate.toISOString(),

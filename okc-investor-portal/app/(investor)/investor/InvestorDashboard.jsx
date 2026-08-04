@@ -5,13 +5,15 @@ import { useSearchParams } from 'next/navigation';
 import StatCard from '@/components/dashboard/StatCard';
 import PortfolioChart from '@/components/dashboard/PortfolioChart';
 import HoldingsTable from '@/components/dashboard/HoldingsTable';
+import PerformanceSection from './PerformanceSection';
+import ActivitySection from './ActivitySection';
 import { fmtDate, fmtMoney, fmtPct, fmtMonth, fmtTime } from '@/lib/format';
 
 const FILTERS = ['1W', '1M', '3M', 'YTD', '1Y', 'All'];
 const DONUT_COLORS = ['#2563eb', '#60a5fa', '#bfdbfe', '#1e40af'];
 const DOT_CLASSES = ['bg-blue-600', 'bg-blue-400', 'bg-blue-200', 'bg-blue-800'];
 
-export default function InvestorDashboard({ name, overview }) {
+export default function InvestorDashboard({ name, overview, availableFunds = [], reports, activity = [] }) {
   const [activeFilter, setActiveFilter] = useState('All');
   const searchParams = useSearchParams();
   const searchQuery = (searchParams.get('search') || '').toLowerCase().trim();
@@ -42,14 +44,54 @@ export default function InvestorDashboard({ name, overview }) {
       .map(d => ({ date: fmtDate(d.date).slice(0, -5), value: d.value }));
   }, [overview, hasData, activeFilter]);
 
+  // Newly onboarded investor: nothing to chart yet, so make the first action
+  // obvious instead of showing an empty portfolio.
   if (!hasData) {
     return (
-      <div className="card p-12 text-center">
-        <h1 className="page-title mb-2">Welcome, {name}</h1>
-        <p className="text-gray-500 text-sm">
-          Your portfolio has no activity yet. Once your first deposit is processed and the
-          fund records its first trading day, your performance will appear here.
-        </p>
+      <div className="space-y-6">
+        <div>
+          <p className="text-gray-500 text-sm mb-1">Welcome, <b>{name}</b>!</p>
+          <h1 className="page-title">Let&apos;s get started</h1>
+          <p className="page-subtitle mt-1">
+            Choose a fund below and submit a deposit request. Once operations confirm your
+            transfer, your portfolio and performance will appear here.
+          </p>
+        </div>
+
+        {availableFunds.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {availableFunds.map(fund => (
+                <div key={fund.id} className="card p-5 flex flex-col justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 leading-snug">{fund.name}</p>
+                    {fund.strategy && <p className="text-xs text-gray-400 mt-1.5">{fund.strategy}</p>}
+                  </div>
+                  <Link
+                    href={`/request-transaction?fundId=${fund.id}`}
+                    className="mt-4 inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
+                  >
+                    Deposit into this fund
+                  </Link>
+                </div>
+              ))}
+            </div>
+
+            <div className="card p-5">
+              <p className="section-label mb-2">WHAT HAPPENS NEXT</p>
+              <ol className="list-decimal pl-5 space-y-1.5 text-sm text-gray-600">
+                <li>Submit a deposit request, and set your risk tolerance for that fund.</li>
+                <li>Operations review it and email you the bank transfer details.</li>
+                <li>You make the transfer and submit its reference.</li>
+                <li>Once operations confirm receipt, your holding goes live here.</li>
+              </ol>
+            </div>
+          </>
+        ) : (
+          <div className="card p-12 text-center text-sm text-gray-400">
+            No funds are open for investment at the moment. Please check back shortly.
+          </div>
+        )}
       </div>
     );
   }
@@ -240,9 +282,19 @@ export default function InvestorDashboard({ name, overview }) {
           footer={{
             deposits: `${fmtMoney(overview.grossDeposits)} total deposits`,
             since: `In the fund since ${fmtDate(overview.inceptionDate)}`,
+            fees:
+              overview.inceptionManagementFee > 0
+                ? `${fmtMoney(overview.inceptionManagementFee)} in management fees since inception`
+                : null,
           }}
         />
       </div>
+
+      {/* Performance (formerly the standalone /reports page — see CLAUDE.md Done #37) */}
+      <PerformanceSection overview={overview} reports={reports} />
+
+      {/* Activity (formerly the standalone /activity page — see CLAUDE.md Done #37) */}
+      <ActivitySection items={activity} />
     </div>
   );
 }

@@ -91,10 +91,10 @@ export default function SettingsClient({ settings }) {
               <span className="font-semibold">Note:</span> Requests at or above the large
               transaction threshold are flagged to Operations during review. Session security
               (timeouts, lockouts, MFA) is managed by Supabase Auth. The management fee is an
-              annual rate accrued daily against each fund&apos;s NAV and deducted from investor
-              P&amp;L. Since ledgers are fully recomputed on every rebuild (deposit/withdrawal
-              approval or data import), changing this rate reapplies it across each fund&apos;s
-              entire history the next time its ledger is rebuilt.
+              annual rate accrued daily against each fund&apos;s NAV, shown to investors as its
+              own line item separate from trading P&amp;L. Changing this rate takes effect from
+              today onward only — every past day keeps whatever rate was in force when it was
+              calculated, even after a ledger rebuild.
             </p>
           </div>
         </div>

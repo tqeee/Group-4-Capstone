@@ -33,10 +33,8 @@ const ROUTE_ROLES: Record<string, Role> = {
   '/ops-funds': 'operations',
   // (investor)
   '/investor': 'investor',
-  '/activity': 'investor',
   '/documents': 'investor',
   '/funds': 'investor',
-  '/reports': 'investor',
   '/request-transaction': 'investor',
   // (portfolio-manager)
   '/portfolio-manager': 'portfolio-manager',
@@ -45,6 +43,16 @@ const ROUTE_ROLES: Record<string, Role> = {
   '/port-transactions': 'portfolio-manager',
   // API routes (the proxy returns 401/403 JSON for these instead of redirecting)
   '/api/statements': 'investor',
+}
+
+// Single source of truth for role color-coding — the nav badge pill and the
+// Admin Users page's role badges both read from this, so a role's color can
+// never drift between the two surfaces.
+export const ROLE_BADGE_STYLE: Record<Role, string> = {
+  investor: 'bg-gray-100 text-gray-600',
+  operations: 'bg-yellow-50 text-yellow-700',
+  admin: 'bg-blue-50 text-blue-600',
+  'portfolio-manager': 'bg-purple-50 text-purple-600',
 }
 
 export function normalizeRole(value: unknown): Role {

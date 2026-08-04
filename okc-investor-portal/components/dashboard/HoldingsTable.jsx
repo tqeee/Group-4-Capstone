@@ -53,6 +53,7 @@ export default function HoldingsTable({ data = [], footer = null }) {
             {footer.deposits}
           </div>
           <div>{footer.since}</div>
+          {footer.fees && <div>{footer.fees}</div>}
         </div>
       )}
     </div>

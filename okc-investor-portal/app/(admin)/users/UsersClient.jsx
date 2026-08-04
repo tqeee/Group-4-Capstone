@@ -2,20 +2,18 @@
 import { useActionState, useEffect, useState } from 'react';
 import { inviteUser, setUserStatus, resetUserMfa } from './actions';
 import { fmtDate, fmtMoney } from '@/lib/format';
- 
+import { ROLE_BADGE_STYLE } from '@/lib/auth/roles';
+
 const statusStyle = {
   Active: 'bg-green-50 text-green-600',
   Invited: 'bg-blue-50 text-blue-600',
   Disabled: 'bg-red-50 text-red-600',
 };
- 
-const roleStyle = {
-  investor: 'bg-gray-100 text-gray-600',
-  operations: 'bg-green-50 text-green-600',
-  admin: 'bg-blue-50 text-blue-600',
-  'portfolio-manager': 'bg-purple-50 text-purple-600',
-};
- 
+
+// Shared with lib/auth/roles.ts so a role's badge color can never drift
+// between this page and any other surface that reads the same constant.
+const roleStyle = ROLE_BADGE_STYLE;
+
 const roleLabel = {
   investor: 'Investor',
   operations: 'Operations',

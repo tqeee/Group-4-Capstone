@@ -9,6 +9,64 @@ const statusBadgeStyles = {
   Processing: 'bg-amber-100 text-amber-700',
 };
 
+// A broker export carries no fund identifier, so the operator's fund choice
+// can't be verified automatically. Showing exactly what the file contained
+// lets them confirm it themselves at a glance.
+function FileSummary({ summary }) {
+  const period =
+    summary.dateFrom && summary.dateTo
+      ? `${fmtDate(summary.dateFrom)} – ${fmtDate(summary.dateTo)}`
+      : '—';
+
+  return (
+    <div className="max-w-xl rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+        Detected in {summary.fileName}
+      </p>
+      <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+        <dt className="text-gray-500">Target fund</dt>
+        <dd className="font-semibold text-gray-900">{summary.fundName}</dd>
+
+        <dt className="text-gray-500">Trading period</dt>
+        <dd className="font-medium text-gray-700">{period}</dd>
+
+        <dt className="text-gray-500">Instruments</dt>
+        <dd className="font-medium text-gray-700">
+          {summary.symbols.length > 0
+            ? summary.symbols.map(s => `${s.symbol} (${s.count})`).join(', ')
+            : '—'}
+        </dd>
+
+        <dt className="text-gray-500">Strategies</dt>
+        <dd className="font-medium text-gray-700">
+          {summary.strategies.length > 0
+            ? summary.strategies.map(s => `${s.magic} (${s.count})`).join(', ')
+            : '—'}
+        </dd>
+
+        <dt className="text-gray-500">Deal rows</dt>
+        <dd className="font-medium text-gray-700">{summary.dealRows}</dd>
+
+        {summary.balanceRows > 0 && (
+          <>
+            <dt className="text-gray-500">Balance rows</dt>
+            <dd className="font-medium text-gray-700">
+              {summary.balanceRows} excluded — record as fund flows
+            </dd>
+          </>
+        )}
+
+        {summary.invalidRows > 0 && (
+          <>
+            <dt className="text-gray-500">Invalid rows</dt>
+            <dd className="font-medium text-amber-700">{summary.invalidRows} skipped</dd>
+          </>
+        )}
+      </dl>
+    </div>
+  );
+}
+
 export default function DataImportClient({ batches, funds }) {
   const [state, formAction, isPending] = useActionState(importDealsCsv, undefined);
   const [fileName, setFileName] = useState(null);
@@ -128,13 +186,48 @@ export default function DataImportClient({ batches, funds }) {
                 <p className="auth-status-message status-success max-w-xl">{state.message}</p>
               )}
 
-              <button
-                type="submit"
-                disabled={isPending || !fileName}
-                className="rounded-lg bg-blue-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isPending ? 'Importing…' : 'Import and recalculate ledger'}
-              </button>
+              {/* What the importer found in the file — shown on every outcome so
+                  an import is never a black box. */}
+              {state?.summary && <FileSummary summary={state.summary} />}
+
+              {state?.status === 'confirm' && (
+                <div className="max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-900">{state.message}</p>
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-amber-800">
+                    {state.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-xs text-amber-700">
+                    Nothing has been imported yet. Pick a different fund above, or import anyway
+                    if this is correct.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={isPending || !fileName}
+                  className="rounded-lg bg-blue-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isPending ? 'Importing…' : 'Import and recalculate ledger'}
+                </button>
+
+                {/* Submitting via this button sends confirm=true, which tells the
+                    action the operator has read the warnings. */}
+                {state?.status === 'confirm' && (
+                  <button
+                    type="submit"
+                    name="confirm"
+                    value="true"
+                    disabled={isPending || !fileName}
+                    className="rounded-lg border border-amber-500 bg-white px-6 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Import anyway
+                  </button>
+                )}
+              </div>
             </form>
           </section>
 

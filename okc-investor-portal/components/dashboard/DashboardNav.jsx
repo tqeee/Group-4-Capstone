@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signout } from '@/app/(auth)/login/actions';
 import IdleTimeout from './IdleTimeout';
+import { ROLE_BADGE_STYLE } from '@/lib/auth/roles';
 
 // Shared shell for the investor, operations and admin sections: a sticky
 // top bar — brand/search/profile row with tab links below on desktop, a
@@ -169,20 +170,16 @@ function SearchForm({ searchPath, placeholder, className }) {
   );
 }
 
-function Brand({ brandLetter, badge }) {
+function Brand({ badge, role }) {
+  const badgeStyle = ROLE_BADGE_STYLE[role] ?? ROLE_BADGE_STYLE.admin;
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-sm font-bold text-white shadow-sm">
-        {brandLetter}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-[15px] font-bold leading-tight text-gray-900">OKC</p>
-        {badge && (
-          <span className="mt-0.5 inline-block rounded-full bg-blue-50 px-2 py-px text-[11px] font-semibold text-blue-600">
-            {badge}
-          </span>
-        )}
-      </div>
+    <div className="flex min-w-0 items-center gap-2.5">
+      <p className="truncate text-2xl font-extrabold leading-none tracking-tight text-gray-900">OKC</p>
+      {badge && (
+        <span className={`inline-block flex-shrink-0 rounded-full px-2 py-px text-[11px] font-semibold ${badgeStyle}`}>
+          {badge}
+        </span>
+      )}
     </div>
   );
 }
@@ -191,7 +188,7 @@ export default function DashboardNav({
   email,
   roleLabel,
   badge,
-  brandLetter = 'F',
+  role,
   navItems,
   searchPath,
   searchPlaceholder = 'Search…',
@@ -210,7 +207,7 @@ export default function DashboardNav({
         <div className="mx-auto max-w-7xl px-4 sm:px-8">
           {/* ── Brand / search / profile row ────────────────────────── */}
           <div className="flex items-center justify-between gap-4 py-3">
-            <Brand brandLetter={brandLetter} badge={badge} />
+            <Brand badge={badge} role={role} />
             <div className="flex items-center gap-3">
               {searchPath && (
                 <SearchForm

@@ -13,8 +13,9 @@ export default async function DashboardLayout({ children }) {
 
   return (
     <DashboardNav
-      email={email} 
+      email={email}
       roleLabel="Investor"
+      role="investor"
       navItems={navItems}
       searchPath="/investor"
       searchPlaceholder="Search funds..."

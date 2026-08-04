@@ -3,14 +3,8 @@
 import { useActionState, useEffect, useState } from 'react';
 import { fmtDate, fmtMoney } from '@/lib/format';
 import { createFund } from './actions';
-import { FUND_CURRENCIES, FUND_RISK_LEVELS } from './constants';
+import { FUND_CURRENCIES } from './constants';
 import FundDetailModal from './FundDetailModal';
-
-const riskStyle = {
-  Low: 'bg-green-50 text-green-600',
-  Moderate: 'bg-amber-50 text-amber-600',
-  High: 'bg-red-50 text-red-500',
-};
 
 export default function FundsClient({ funds, seriesByFund }) {
   const [showModal, setShowModal] = useState(false);
@@ -105,12 +99,7 @@ export default function FundsClient({ funds, seriesByFund }) {
                   {fund.code.slice(0, 4)}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-gray-900">{fund.name}</p>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${riskStyle[fund.riskLevel] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {fund.riskLevel} risk
-                    </span>
-                  </div>
+                  <p className="font-semibold text-gray-900">{fund.name}</p>
                   <p className="mt-1 text-sm text-gray-400">
                     {fund.strategy || fund.description || 'No strategy description'}
                     {' · '}since {fmtDate(fund.inceptionDate)}
@@ -206,7 +195,7 @@ export default function FundsClient({ funds, seriesByFund }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Currency</label>
                   <select
@@ -216,18 +205,6 @@ export default function FundsClient({ funds, seriesByFund }) {
                   >
                     {FUND_CURRENCIES.map(c => (
                       <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Risk level</label>
-                  <select
-                    name="riskLevel"
-                    defaultValue="High"
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {FUND_RISK_LEVELS.map(r => (
-                      <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
                 </div>
