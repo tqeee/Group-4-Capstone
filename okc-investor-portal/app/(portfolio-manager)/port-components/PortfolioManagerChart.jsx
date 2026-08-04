@@ -48,7 +48,10 @@ const isUpDay = (chartData, index) => {
 // custom-colored tooltip while still getting Chart.js's real animated
 // redraw — instead of choosing one or the other.
 export default function PortfolioManagerChart({ data, valueType = 'currency', onHoverPoint }) {
-  const chartData = data || [];
+  // Memoized so the identity is stable when `data` is: `data || []` would
+  // otherwise mint a fresh array on every render, which is what the config
+  // memo below depends on.
+  const chartData = useMemo(() => data || [], [data]);
  
   const formatValue = (value) =>
     valueType === 'percent'
@@ -77,8 +80,7 @@ export default function PortfolioManagerChart({ data, valueType = 'currency', on
         },
       },
     ],
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [JSON.stringify(chartData)]);
+  }), [chartData]);
  
   const options = useMemo(() => ({
     responsive: true,

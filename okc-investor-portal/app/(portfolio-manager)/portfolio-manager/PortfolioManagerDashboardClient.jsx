@@ -68,21 +68,19 @@ export default function PortfolioManagerDashboardClient({ name, funds, seriesByF
   // Every fund's share of total AUM — scales automatically to however many
   // funds actually exist, rather than a hardcoded "this fund vs the rest".
   const allocationSegments = useMemo(() => {
-    let cumulative = 0;
-    return funds.map((fund, i) => {
-      const pct = totalAum > 0 ? (fund.aum / totalAum) * 100 : 0;
-      const segment = {
-        fund,
-        pct,
-        start: cumulative, // cumulative % before this segment — used both to
-        // position this segment on the ring and to place its label at the
-        // ring's midpoint angle.
-        color: DONUT_COLORS[i % DONUT_COLORS.length],
-        dotClass: DOT_CLASSES[i % DOT_CLASSES.length],
-      };
-      cumulative += pct;
-      return segment;
-    });
+    // Percentages first, so each segment's start offset can be derived from
+    // them rather than by mutating a running total during the map — the React
+    // Compiler rejects reassigning an outer variable inside render.
+    const pcts = funds.map(fund => (totalAum > 0 ? (fund.aum / totalAum) * 100 : 0));
+    return funds.map((fund, i) => ({
+      fund,
+      pct: pcts[i],
+      // Cumulative % before this segment — used both to position it on the
+      // ring and to place its label at the ring's midpoint angle.
+      start: pcts.slice(0, i).reduce((sum, p) => sum + p, 0),
+      color: DONUT_COLORS[i % DONUT_COLORS.length],
+      dotClass: DOT_CLASSES[i % DOT_CLASSES.length],
+    }));
   }, [funds, totalAum]);
  
   const fundPerformanceData = useMemo(() => seriesByFund[selectedFundId] ?? [], [seriesByFund, selectedFundId]);
