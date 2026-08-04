@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { runAllocationScenario } from './whatIf'
 import type { LedgerDeal, LedgerFlow } from './ledger'
+import type { FeeRatePeriod } from './managementFee'
 
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`)
 
@@ -21,6 +22,12 @@ const flow = (dateIso: string, investorId: string, type: LedgerFlow['type'], amo
   processedDate: day(dateIso),
 })
 
+// A single rate in force from the given date onward — matches the shape
+// lib/managementFee.ts#getManagementFeeRateHistory returns.
+const feeRate = (dateIso: string, annualPct: number): FeeRatePeriod[] => [
+  { effectiveFrom: day(dateIso), annualPct },
+]
+
 describe('runAllocationScenario', () => {
   it('with no hypothetical flows, scenario equals baseline exactly', () => {
     const deals = [deal('2024-01-02', 1000)]
@@ -31,7 +38,7 @@ describe('runAllocationScenario', () => {
       deals,
       actualFlows,
       [],
-      0,
+      [],
       day('2024-01-01'),
       day('2024-01-03')
     )
@@ -53,7 +60,7 @@ describe('runAllocationScenario', () => {
       deals,
       actualFlows,
       hypotheticalFlows,
-      0,
+      [],
       day('2024-01-01'),
       day('2024-01-03')
     )
@@ -86,7 +93,7 @@ describe('runAllocationScenario', () => {
       deals,
       actualFlows,
       hypotheticalFlows,
-      1,
+      feeRate('2024-01-01', 1),
       day('2024-01-01'),
       day('2024-01-03')
     )
@@ -105,7 +112,7 @@ describe('runAllocationScenario', () => {
       deals,
       actualFlows,
       [],
-      0,
+      [],
       day('2024-01-01'),
       day('2024-01-03')
     )

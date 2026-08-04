@@ -6,7 +6,7 @@
 
 import { requireRole } from '@/lib/auth/guards'
 import { prisma } from '@/lib/db'
-import { getSettings } from '@/lib/settings'
+import { getManagementFeeRateHistory } from '@/lib/managementFee'
 import { getFundReturnDrivers, getFundInvestorShares, type FundInvestorShare } from '@/lib/queries'
 import { runAllocationScenario, type AllocationScenarioResult } from '@/lib/whatIf'
 import type { LedgerDeal, LedgerFlow } from '@/lib/ledger'
@@ -83,7 +83,7 @@ export async function runWhatIf(
   const fund = await prisma.fund.findUnique({ where: { id: fundId }, select: { id: true } })
   if (!fund) return { error: 'Fund not found.' }
 
-  const [dealsRaw, actualFlowsRaw, settings] = await Promise.all([
+  const [dealsRaw, actualFlowsRaw, feeRates] = await Promise.all([
     prisma.deal.findMany({
       where: { fundId, type: { not: 2 } },
       select: { time: true, profit: true, commission: true, swap: true, fee: true, entry: true },
@@ -92,7 +92,7 @@ export async function runWhatIf(
       where: { fundId, status: 'COMPLETED', processedDate: { not: null } },
       select: { investorId: true, type: true, amount: true, processedDate: true },
     }),
-    getSettings(),
+    getManagementFeeRateHistory(),
   ])
 
   const deals: LedgerDeal[] = dealsRaw.map(d => ({
@@ -120,7 +120,6 @@ export async function runWhatIf(
     processedDate: new Date(`${f.dateIso}T00:00:00.000Z`),
   }))
 
-  const managementFeeAnnualPct = Number(settings.managementFee)
   const from = new Date(`${fromIso}T00:00:00.000Z`)
   const to = new Date(`${toIso}T00:00:00.000Z`)
 
@@ -130,7 +129,7 @@ export async function runWhatIf(
       deals,
       actualFlows,
       hypothetical,
-      managementFeeAnnualPct,
+      feeRates,
       from,
       to
     )

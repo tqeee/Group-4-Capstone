@@ -15,6 +15,7 @@
 
 import { computeFundLedger, type LedgerDeal, type LedgerFlow, type FundDailyNavRow } from '@/lib/ledger'
 import { compoundReturn } from '@/lib/finance'
+import type { FeeRatePeriod } from '@/lib/managementFee'
 
 export type ScenarioSummary = {
   endingBalance: number
@@ -45,22 +46,25 @@ function summarizePeriod(navRows: FundDailyNavRow[], fromMs: number, toMs: numbe
 // `from`/`to` bound the reporting window (matches the Performance page's
 // selected date range) — the ledger itself is always replayed from the
 // fund's full deal history, since day N's opening balance depends on every
-// day before it.
+// day before it. `feeRates` is the fund's full management-fee rate history
+// (lib/managementFee.ts#getManagementFeeRateHistory) — computeFundLedger
+// resolves whichever rate was actually in force on each replayed day, so a
+// mid-history rate change is reflected the same way it is in the real ledger.
 export function runAllocationScenario(
   fundId: string,
   deals: LedgerDeal[],
   actualFlows: LedgerFlow[],
   hypotheticalFlows: LedgerFlow[],
-  managementFeeAnnualPct: number,
+  feeRates: FeeRatePeriod[],
   from: Date,
   to: Date
 ): AllocationScenarioResult {
-  const baselineLedger = computeFundLedger(fundId, deals, actualFlows, managementFeeAnnualPct)
+  const baselineLedger = computeFundLedger(fundId, deals, actualFlows, feeRates)
   const scenarioLedger = computeFundLedger(
     fundId,
     deals,
     [...actualFlows, ...hypotheticalFlows],
-    managementFeeAnnualPct
+    feeRates
   )
 
   const fromMs = from.getTime()

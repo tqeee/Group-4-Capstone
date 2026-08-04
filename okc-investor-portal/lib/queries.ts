@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/db'
 import { compoundReturn } from '@/lib/ledger'
 import { fmtDate } from '@/lib/format'
-import { getSettings } from '@/lib/settings'
 import { summarizeReturnDrivers, type ReturnDriverBreakdown } from '@/lib/returnDrivers'
 
 // Read models for the portal pages. Everything returned here is plain JSON
@@ -643,7 +642,7 @@ export async function getFundReturnDrivers(
   const fromDay = new Date(`${fromIso}T00:00:00.000Z`)
   const toDayExclusive = new Date(new Date(`${toIso}T00:00:00.000Z`).getTime() + 24 * 60 * 60 * 1000)
 
-  const [dealsRaw, navInRange, settings] = await Promise.all([
+  const [dealsRaw, navInRange] = await Promise.all([
     prisma.deal.findMany({
       // type 2 = balance rows — money movement, not trading P&L (same filter
       // rebuildFundLedger applies before computeFundLedger sees them).
@@ -652,16 +651,15 @@ export async function getFundReturnDrivers(
     }),
     prisma.fundDailyNav.findMany({
       where: { fundId, date: { gte: fromDay, lt: toDayExclusive } },
-      select: { openingBalance: true },
+      select: { managementFee: true },
     }),
-    getSettings(),
   ])
 
-  const managementFeeAnnualPct = Number(settings.managementFee)
-  const managementFeeTotal = navInRange.reduce(
-    (sum, row) => sum + num(row.openingBalance) * (managementFeeAnnualPct / 100 / 365),
-    0
-  )
+  // Sum the already-persisted per-day fee (computeFundLedger applies
+  // whichever rate was actually in force on each day — see rateOnDay in
+  // lib/ledger.ts) rather than re-deriving it from the CURRENT rate, which
+  // would be wrong for any period spanning a rate change.
+  const managementFeeTotal = navInRange.reduce((sum, row) => sum + num(row.managementFee), 0)
 
   return summarizeReturnDrivers(
     dealsRaw.map(d => ({
