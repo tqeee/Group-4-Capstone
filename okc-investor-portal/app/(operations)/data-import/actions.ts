@@ -6,14 +6,15 @@ import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth/guards'
 import { rebuildFundLedger } from '@/lib/ledger'
 import { audit } from '@/lib/audit'
-import {
-  buildImportSummary,
-  checkImportAgainstFund,
-  type ImportSummary,
-  type ParsedDealRow,
-} from '@/lib/importValidation'
+import { buildImportSummary, checkImportAgainstFund } from '@/lib/importValidation'
+import type { ImportSummary, ParsedDealRow } from '@/lib/importValidation'
 
-export type { ImportSummary }
+// NB: do not re-export ImportSummary from here. Next's 'use server' transform
+// enumerates this module's exports at runtime, and re-exporting an imported
+// type emits a reference to a binding that does not exist once types are
+// erased — which throws "ImportSummary is not defined" as the module loads,
+// breaking every import regardless of file or fund. Consumers that need the
+// type should import it from '@/lib/importValidation' directly.
 
 export type ImportState =
   | { status: 'success'; message: string; inserted: number; skipped: number; summary: ImportSummary }
