@@ -2,42 +2,45 @@
  
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/auth/guards'
-import { normalizeRole } from '@/lib/auth/roles'
+import { normalizeRole, type Role } from '@/lib/auth/roles'
 import { prisma } from '@/lib/db'
 import { getInvestorsDirectory } from '@/lib/queries'
  
-export type PortfolioManagerInvestor = {
+export type OperationsAccount = {
   id: string
   email: string
   name: string | null
-  role: ReturnType<typeof normalizeRole>
+  role: Role
   status: 'Active' | 'Invited' | 'Disabled'
   createdAt: string
   lastSignInAt: string | null
-  // Ledger-derived profile fields, joined in from the same read model
-  // Operations' Investors directory uses (lib/queries.ts#getInvestorsDirectory)
-  // — powers the "View Profile" panel + Portfolio Value column.
+  // Ledger-derived profile fields (only meaningful for role === 'investor'),
+  // joined in from the same read model Admin's Users page and PM's Investors
+  // page both use (lib/queries.ts#getInvestorsDirectory) — powers the "View
+  // Profile" panel + Portfolio Value column.
   investorId: string | null
   onboardingDate: string | null
   portfolioValue: number | null
 }
  
-function userStatus(user: {
-  banned_until?: string | null
-  email_confirmed_at?: string | null
-  last_sign_in_at?: string | null
-}): 'Active' | 'Invited' | 'Disabled' {
-  if (user.banned_until) return 'Disabled'
-  if (!user.last_sign_in_at) return 'Invited'
-  return 'Active'
+function accountStatus(user: {
+  banned_until?: string
+  app_metadata: { must_change_password?: boolean } & Record<string, unknown>
+}): OperationsAccount['status'] {
+  if (user.banned_until && new Date(user.banned_until) > new Date()) {
+    return 'Disabled'
+  }
+  return user.app_metadata?.must_change_password === true ? 'Invited' : 'Active'
 }
  
-// Read-only investor directory for Portfolio Manager. Self-contained under
-// (portfolio-manager) — does not depend on or modify anything in (admin).
-export async function listInvestorsForPortfolioManager(): Promise<
-  { investors: PortfolioManagerInvestor[]; error?: never } | { investors?: never; error: string }
+// Read-only account directory for Operations — same shape/layout as Admin's
+// Users page (all roles, filterable, portfolio value + View Profile), but
+// with no management actions (no invite, no disable, no 2FA reset). Those
+// stay Admin-only; this is view access, self-contained under (operations).
+export async function listAccountsForOperations(): Promise<
+  { accounts: OperationsAccount[]; error?: never } | { accounts?: never; error: string }
 > {
-  const auth = await requireRole('portfolio-manager')
+  const auth = await requireRole('operations')
   if (!auth.ok) {
     return { error: auth.message }
   }
@@ -55,8 +58,6 @@ export async function listInvestorsForPortfolioManager(): Promise<
     return { error: error.message }
   }
  
-  // Join in portal profile names (dataset 5.1), and the full investor
-  // directory (id/onboarding/portfolio value) for the View Profile panel.
   const [profiles, investorDirectory] = await Promise.all([
     prisma.investor.findMany({ select: { email: true, name: true } }),
     getInvestorsDirectory(),
@@ -64,8 +65,8 @@ export async function listInvestorsForPortfolioManager(): Promise<
   const nameByEmail = new Map(profiles.map((p) => [p.email, p.name]))
   const investorByEmail = new Map(investorDirectory.map((i) => [i.email.toLowerCase(), i]))
  
-  const investors = data.users
-    .map((user) => {
+  return {
+    accounts: data.users.map((user) => {
       const investorRow = investorByEmail.get(user.email?.toLowerCase() ?? '')
       return {
         id: user.id,
@@ -75,16 +76,13 @@ export async function listInvestorsForPortfolioManager(): Promise<
           (user.user_metadata?.name as string | undefined) ??
           null,
         role: normalizeRole(user.app_metadata?.role),
-        status: userStatus(user),
+        status: accountStatus(user),
         createdAt: user.created_at,
         lastSignInAt: user.last_sign_in_at ?? null,
         investorId: investorRow?.id ?? null,
         onboardingDate: investorRow?.onboardingDate ?? null,
         portfolioValue: investorRow?.portfolioValue ?? null,
       }
-    })
-    // PM only needs visibility into investor accounts, not internal staff.
-    .filter((u) => u.role === 'investor')
- 
-  return { investors }
+    }),
+  }
 }

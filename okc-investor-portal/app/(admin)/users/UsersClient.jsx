@@ -1,44 +1,69 @@
 'use client';
 import { useActionState, useEffect, useState } from 'react';
 import { inviteUser, setUserStatus, resetUserMfa } from './actions';
-
+import { fmtDate, fmtMoney } from '@/lib/format';
+ 
 const statusStyle = {
   Active: 'bg-green-50 text-green-600',
   Invited: 'bg-blue-50 text-blue-600',
   Disabled: 'bg-red-50 text-red-600',
 };
-
+ 
 const roleStyle = {
   investor: 'bg-gray-100 text-gray-600',
   operations: 'bg-green-50 text-green-600',
   admin: 'bg-blue-50 text-blue-600',
   'portfolio-manager': 'bg-purple-50 text-purple-600',
 };
-
+ 
 const roleLabel = {
   investor: 'Investor',
   operations: 'Operations',
   admin: 'Admin',
   'portfolio-manager': 'Portfolio Manager',
 };
-
+ 
+// Role filter pills, styled the same as Audit Logs' filter row
+// (components/AuditLogTable.jsx) so the two pages feel consistent.
+// `role: null` means "All" — no filtering.
+const ROLE_FILTERS = [
+  { label: 'All', role: null },
+  { label: 'Investors', role: 'investor' },
+  { label: 'Admin', role: 'admin' },
+  { label: 'Operations', role: 'operations' },
+  { label: 'Portfolio Manager', role: 'portfolio-manager' },
+];
+ 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
+ 
 // Deterministic formatter so server and client render the same markup.
 function formatDate(isoString) {
   if (!isoString) return '—';
   const d = new Date(isoString);
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
-
+ 
+// Matches the initials style used on Operations' Investor Profile modal, so
+// the two "View Profile" panels look the same across sections.
+function getInitials(name) {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase();
+}
+ 
 export default function UsersClient({ users, loadError }) {
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedInvestor, setSelectedInvestor] = useState(null);
   const [toast, setToast] = useState(null);
   const [inviteState, inviteAction, invitePending] = useActionState(inviteUser, undefined);
   const [statusState, statusAction, statusPending] = useActionState(setUserStatus, undefined);
   const [mfaState, mfaAction, mfaPending] = useActionState(resetUserMfa, undefined);
-
+ 
   // Close the modal and surface a toast when an invite succeeds. Done during
   // render (not in an effect) per https://react.dev/learn/you-might-not-need-an-effect.
   const [handledInviteState, setHandledInviteState] = useState(inviteState);
@@ -49,7 +74,7 @@ export default function UsersClient({ users, loadError }) {
       setToast(inviteState.message);
     }
   }
-
+ 
   // Same render-time pattern for disable/enable results.
   const [handledStatusState, setHandledStatusState] = useState(statusState);
   if (statusState !== handledStatusState) {
@@ -58,7 +83,7 @@ export default function UsersClient({ users, loadError }) {
       setToast(statusState.message);
     }
   }
-
+ 
   // ...and for 2FA resets.
   const [handledMfaState, setHandledMfaState] = useState(mfaState);
   if (mfaState !== handledMfaState) {
@@ -67,20 +92,25 @@ export default function UsersClient({ users, loadError }) {
       setToast(mfaState.message);
     }
   }
-
+ 
   // Auto-dismiss the toast.
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-
-  const filtered = users.filter(u =>
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    (u.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    u.id.toLowerCase().includes(search.toLowerCase())
-  );
-
+ 
+  const activeRole = ROLE_FILTERS.find(f => f.label === roleFilter)?.role ?? null;
+ 
+  const filtered = users.filter(u => {
+    const matchesSearch =
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      (u.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      u.id.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = activeRole === null || u.role === activeRole;
+    return matchesSearch && matchesRole;
+  });
+ 
   return (
     <div>
       {/* Header */}
@@ -101,13 +131,13 @@ export default function UsersClient({ users, loadError }) {
           <span className="whitespace-nowrap">Add user</span>
         </button>
       </div>
-
+ 
       {loadError && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-5 py-4 mb-6">
           Could not load users: {loadError}
         </div>
       )}
-
+ 
       {/* Stats row with dynamic switching layouts based on screen size */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
@@ -122,7 +152,24 @@ export default function UsersClient({ users, loadError }) {
           </div>
         ))}
       </div>
-
+ 
+      {/* Role filter pills — same style as Audit Logs' filter row */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {ROLE_FILTERS.map(f => (
+          <button
+            key={f.label}
+            onClick={() => setRoleFilter(f.label)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${
+              roleFilter === f.label
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+ 
       {/* Search + table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
@@ -136,19 +183,24 @@ export default function UsersClient({ users, loadError }) {
             className="text-sm text-gray-700 outline-none flex-1 w-full bg-transparent"
           />
         </div>
-
+ 
         {/* Horizontal scroll support for small layouts */}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
+          <table className="w-full min-w-[860px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
-                {['USER', 'ROLE', 'STATUS', 'JOINED', 'LAST SIGN-IN', ''].map((h, i) => (
+                {['USER', 'ROLE', 'STATUS', 'PORTFOLIO VALUE', 'JOINED', 'LAST SIGN-IN', ''].map((h, i) => (
                   <th key={i} className="text-left text-xs text-gray-400 font-medium px-6 py-4 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map(user => (
+              {filtered.map(user => {
+                // Portfolio value / "View Profile" only make sense for
+                // investor accounts — staff roles have no ledger holdings.
+                const isInvestor = user.role === 'investor' && user.investorId;
+ 
+                return (
                 <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -173,10 +225,24 @@ export default function UsersClient({ users, loadError }) {
                       {user.status}
                     </span>
                   </td>
+                  <td className="px-6 py-4 text-xs text-gray-700 font-semibold whitespace-nowrap">
+                    {isInvestor ? fmtMoney(user.portfolioValue ?? 0) : <span className="text-gray-300 font-normal">—</span>}
+                  </td>
                   <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">{formatDate(user.createdAt)}</td>
                   <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">{formatDate(user.lastSignInAt)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {/* View Profile is available for every role — the modal
+                          shows investor-specific fields (ID, portfolio value,
+                          onboarding date) only when they apply. */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedInvestor(user)}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition"
+                      >
+                        View Profile
+                      </button>
+ 
                       {/* Recovery path for a user who has lost their authenticator:
                           without it they can neither sign in nor reset their password. */}
                       {user.hasMfa && (
@@ -203,43 +269,49 @@ export default function UsersClient({ users, loadError }) {
                           </button>
                         </form>
                       )}
-
-                      <form
-                        action={statusAction}
-                        onSubmit={e => {
-                          const verb = user.status === 'Disabled' ? 're-enable' : 'disable';
-                          if (!window.confirm(`Are you sure you want to ${verb} ${user.email}?`)) {
-                            e.preventDefault();
-                          }
-                        }}
-                      >
-                        <input type="hidden" name="userId" value={user.id} />
-                        <input type="hidden" name="disable" value={user.status === 'Disabled' ? 'false' : 'true'} />
-                        <button
-                          type="submit"
-                          disabled={statusPending}
-                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
-                            user.status === 'Disabled'
-                              ? 'border-green-200 text-green-600 hover:bg-green-50'
-                              : 'border-red-200 text-red-500 hover:bg-red-50'
-                          }`}
+ 
+                      {/* Admins can't disable other admin accounts — no
+                          Disable/Enable action for role === 'admin' rows,
+                          just View Profile + Reset 2FA above. */}
+                      {user.role !== 'admin' && (
+                        <form
+                          action={statusAction}
+                          onSubmit={e => {
+                            const verb = user.status === 'Disabled' ? 're-enable' : 'disable';
+                            if (!window.confirm(`Are you sure you want to ${verb} ${user.email}?`)) {
+                              e.preventDefault();
+                            }
+                          }}
                         >
-                          {user.status === 'Disabled' ? 'Enable' : 'Disable'}
-                        </button>
-                      </form>
+                          <input type="hidden" name="userId" value={user.id} />
+                          <input type="hidden" name="disable" value={user.status === 'Disabled' ? 'false' : 'true'} />
+                          <button
+                            type="submit"
+                            disabled={statusPending}
+                            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
+                              user.status === 'Disabled'
+                                ? 'border-green-200 text-green-600 hover:bg-green-50'
+                                : 'border-red-200 text-red-500 hover:bg-red-50'
+                            }`}
+                          >
+                            {user.status === 'Disabled' ? 'Enable' : 'Disable'}
+                          </button>
+                        </form>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
-
+ 
         {filtered.length === 0 && (
           <div className="text-center py-16 text-gray-400 text-sm">No users found.</div>
         )}
       </div>
-
+ 
       {/* Add-user modal */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn transition-all duration-300">
@@ -292,13 +364,13 @@ export default function UsersClient({ users, loadError }) {
                 A temporary password will be generated and emailed to this address.
                 The user must change it the first time they sign in.
               </p>
-
+ 
               {inviteState?.status === 'error' && (
                 <p className="text-sm text-red-500 bg-red-50 rounded-lg px-4 py-3">
                   {inviteState.message}
                 </p>
               )}
-
+ 
               {inviteState?.status === 'warning' && (
                 <div className="text-sm text-amber-700 bg-amber-50 rounded-lg px-4 py-3 space-y-2">
                   <p>{inviteState.message}</p>
@@ -308,7 +380,7 @@ export default function UsersClient({ users, loadError }) {
                   </p>
                 </div>
               )}
-
+ 
               <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
                 <button
                   type="button"
@@ -329,7 +401,59 @@ export default function UsersClient({ users, loadError }) {
           </div>
         </div>
       )}
-
+ 
+      {/* Account Information modal — opened via "View Profile" for any role.
+          Investor-only fields (ID, onboarding date, portfolio value) only
+          render when the account actually has them; every other role just
+          sees name/email/role/status/joined/last sign-in. */}
+      {selectedInvestor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-700">
+                  {roleLabel[selectedInvestor.role]} Profile
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-gray-900">Account Information</h2>
+              </div>
+              <button
+                className="text-2xl leading-none text-gray-400 transition hover:text-gray-700"
+                onClick={() => setSelectedInvestor(null)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+ 
+            <div className="mt-6 flex items-center gap-4 rounded-xl bg-gray-50 p-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+                {getInitials(selectedInvestor.name)}
+              </div>
+              <div>
+                <p className="font-bold text-gray-900">{selectedInvestor.name ?? selectedInvestor.email}</p>
+                <p className="mt-1 text-sm text-gray-500">{selectedInvestor.email}</p>
+              </div>
+            </div>
+ 
+            <div className="mt-5 overflow-hidden rounded-lg border border-gray-100">
+              <ProfileRow label="Registered Name" value={selectedInvestor.name ?? '—'} />
+              <ProfileRow label="Registered Email" value={selectedInvestor.email} />
+              <ProfileRow label="Role" value={roleLabel[selectedInvestor.role]} />
+              <ProfileRow label="Status" value={selectedInvestor.status} />
+              <ProfileRow label="Joined" value={formatDate(selectedInvestor.createdAt)} />
+              <ProfileRow label="Last Sign-in" value={formatDate(selectedInvestor.lastSignInAt)} />
+              {selectedInvestor.role === 'investor' && selectedInvestor.investorId && (
+                <>
+                  <ProfileRow label="Investor ID" value={selectedInvestor.investorId} />
+                  <ProfileRow label="Onboarded" value={fmtDate(selectedInvestor.onboardingDate)} />
+                  <ProfileRow label="Portfolio Value" value={fmtMoney(selectedInvestor.portfolioValue ?? 0)} />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+ 
       {/* Toast alert handling */}
       {toast && (
         <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-white/70 backdrop-blur-sm border border-gray-200 text-gray-900 text-sm px-5 py-3.5 rounded-2xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0 animate-slideUp">
@@ -339,6 +463,15 @@ export default function UsersClient({ users, loadError }) {
           <span className="truncate">{toast}</span>
         </div>
       )}
+    </div>
+  );
+}
+ 
+function ProfileRow({ label, value }) {
+  return (
+    <div className="grid grid-cols-[150px_1fr] border-b border-gray-100 last:border-b-0">
+      <div className="bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-400">{label}</div>
+      <div className="px-4 py-3 text-sm font-medium text-gray-700 break-all">{value}</div>
     </div>
   );
 }
