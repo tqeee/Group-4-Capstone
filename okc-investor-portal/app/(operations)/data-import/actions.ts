@@ -6,10 +6,22 @@ import { prisma } from '@/lib/db'
 import { requireRole } from '@/lib/auth/guards'
 import { rebuildFundLedger } from '@/lib/ledger'
 import { audit } from '@/lib/audit'
+import {
+  buildImportSummary,
+  checkImportAgainstFund,
+  type ImportSummary,
+  type ParsedDealRow,
+} from '@/lib/importValidation'
+
+export type { ImportSummary }
 
 export type ImportState =
-  | { status: 'success'; message: string; inserted: number; skipped: number }
-  | { status: 'error'; message: string }
+  | { status: 'success'; message: string; inserted: number; skipped: number; summary: ImportSummary }
+  // The file's contents look inconsistent with the chosen fund. Not an error —
+  // a fund legitimately can start trading a new instrument — so the operator is
+  // shown what was found and can resubmit to override.
+  | { status: 'confirm'; message: string; warnings: string[]; summary: ImportSummary }
+  | { status: 'error'; message: string; summary?: ImportSummary }
   | undefined
 
 // MT5 exports carry `type`/`entry` either as numeric codes (dataset 5.4 spec)
@@ -73,6 +85,9 @@ export async function importDealsCsv(
 
   const file = formData.get('file')
   const fundId = formData.get('fundId')
+  // Set by the "Import anyway" button when the operator has seen the warnings
+  // and wants to proceed regardless.
+  const overrideWarnings = formData.get('confirm') === 'true'
 
   if (!(file instanceof File) || file.size === 0) {
     return { status: 'error', message: 'Please choose a CSV file to import.' }
@@ -80,7 +95,9 @@ export async function importDealsCsv(
   if (file.size > 50 * 1024 * 1024) {
     return { status: 'error', message: 'File is larger than the 50MB limit.' }
   }
-  if (typeof fundId !== 'string' || !(await prisma.fund.findUnique({ where: { id: fundId } }))) {
+  const fund =
+    typeof fundId === 'string' ? await prisma.fund.findUnique({ where: { id: fundId } }) : null
+  if (!fund) {
     return { status: 'error', message: 'Please choose a valid fund.' }
   }
 
@@ -127,6 +144,10 @@ export async function importDealsCsv(
   }[] = []
   let skipped = 0
   let balanceRows = 0
+  // Minimal shape the validation needs. `magic` (strategy id) is not stored on
+  // Deal — one fund runs many strategies, so it identifies an EA, not a fund —
+  // but reporting it lets ops confirm the file holds what they expect.
+  const parsedRows: ParsedDealRow[] = []
 
   for (const row of parsed.data) {
     const ticketRaw = (row.ticket ?? '').trim()
@@ -145,9 +166,18 @@ export async function importDealsCsv(
       skipped++
       continue
     }
+
+    const symbol = row.symbol.trim()
+    parsedRows.push({
+      ticket: BigInt(ticketRaw),
+      symbol,
+      time,
+      magic: (row.magic ?? '').trim() || null,
+    })
+
     rows.push({
       ticket: BigInt(ticketRaw),
-      fundId,
+      fundId: fund.id,
       order: /^\d+$/.test((row.order ?? '').trim()) ? BigInt(row.order.trim()) : null,
       time,
       type: type ?? 0,
@@ -161,15 +191,38 @@ export async function importDealsCsv(
       swap: toNum(row.swap),
       profit: toNum(row.profit),
       fee: toNum(row.fee),
-      symbol: row.symbol.trim(),
+      symbol,
       comment: row.comment?.trim() || null,
     })
   }
+
+  const summary = buildImportSummary({
+    fileName: file.name,
+    fundName: fund.name,
+    rows: parsedRows,
+    balanceRows,
+    invalidRows: skipped,
+  })
 
   if (rows.length === 0) {
     return {
       status: 'error',
       message: `No valid deal rows found (${skipped} invalid, ${balanceRows} balance row(s)).`,
+      summary,
+    }
+  }
+
+  // Catch the obvious mistake of pointing a file at the wrong fund before
+  // anything is written (see lib/importValidation.ts for why this can only
+  // ever be a warning, never an automatic routing decision).
+  const warnings = await checkImportAgainstFund(fund, parsedRows, summary.symbols)
+
+  if (warnings.length > 0 && !overrideWarnings) {
+    return {
+      status: 'confirm',
+      message: `Check this file matches ${fund.name} before importing.`,
+      warnings,
+      summary,
     }
   }
 
@@ -201,11 +254,15 @@ export async function importDealsCsv(
     },
   })
 
-  await rebuildFundLedger(fundId)
+  await rebuildFundLedger(fund.id)
 
   await audit('DATA_IMPORTED', {
     actor: guard.email,
-    detail: `${file.name}: ${result.count} deals inserted, ${skipped} invalid, ${duplicates} duplicates, ${balanceRows} balance rows`,
+    detail:
+      `${file.name} -> ${fund.name}: ${result.count} deals inserted, ${skipped} invalid, ` +
+      `${duplicates} duplicates, ${balanceRows} balance rows` +
+      `, symbols: ${summary.symbols.map(s => s.symbol).join('/') || 'none'}` +
+      (overrideWarnings ? ' [imported despite warnings]' : ''),
   })
 
   revalidatePath('/data-import')
@@ -214,6 +271,7 @@ export async function importDealsCsv(
     status: 'success',
     inserted: result.count,
     skipped: skipped + duplicates + balanceRows,
-    message: `${file.name}: ${result.count} deal(s) imported${duplicates ? `, ${duplicates} duplicate(s) skipped` : ''}${skipped ? `, ${skipped} invalid row(s) skipped` : ''}${balanceRows ? `, ${balanceRows} balance row(s) (deposits/withdrawals) excluded — record those as fund flows` : ''}. Ledger recalculated.`,
+    summary,
+    message: `${file.name} -> ${fund.name}: ${result.count} deal(s) imported${duplicates ? `, ${duplicates} duplicate(s) skipped` : ''}${skipped ? `, ${skipped} invalid row(s) skipped` : ''}${balanceRows ? `, ${balanceRows} balance row(s) (deposits/withdrawals) excluded — record those as fund flows` : ''}. Ledger recalculated.`,
   }
 }
