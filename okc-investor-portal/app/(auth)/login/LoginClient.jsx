@@ -6,7 +6,7 @@ import AuthBrandPanel from '@/components/auth/AuthBrandPanel';
 import { IDLE_TIMEOUT_MS } from '@/lib/auth/idle';
 import { login } from './actions';
 
-export default function LoginClient({ timedOut = false }) {
+export default function LoginClient({ timedOut = false, signedInElsewhere = false }) {
   const [state, formAction, isPending] = useActionState(login, undefined);
 
   return (
@@ -33,6 +33,14 @@ export default function LoginClient({ timedOut = false }) {
             <p className="auth-status-message status-info mb-[clamp(1.5rem,2vw,2rem)]">
               You were signed out after {IDLE_TIMEOUT_MS / 60000} minutes of inactivity. Please
               sign in again.
+            </p>
+          )}
+
+          {/* Set by the proxy when this account was signed in again somewhere
+              else — only one session per account is allowed at a time. */}
+          {signedInElsewhere && (
+            <p className="auth-status-message status-info mb-[clamp(1.5rem,2vw,2rem)]">
+              You've been signed out because this account was signed in on another device.
             </p>
           )}
 

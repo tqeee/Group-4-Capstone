@@ -10,6 +10,7 @@ import {
   idleMillisFrom,
 } from '@/lib/auth/idle'
 import { siteOriginFromHeaders } from '@/lib/site-url'
+import { CONCURRENT_KICK_COOKIE } from '@/lib/auth/session-guard'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -95,7 +96,10 @@ export async function updateSession(request: NextRequest) {
 
   // Routes that can be reached without being signed in. Exact-or-segment
   // matching so a prefix can't accidentally expose similarly named routes.
-  const publicRoutes = ['/login', '/forgot-password', '/auth', '/debug-users']
+  // '/api/cron' is machine-to-machine (a scheduler, not a browser session) —
+  // it has no user to authenticate here, so it does its own CRON_SECRET
+  // bearer-token check inside the route handler instead.
+  const publicRoutes = ['/login', '/forgot-password', '/auth', '/debug-users', '/api/cron']
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   )
@@ -138,6 +142,41 @@ export async function updateSession(request: NextRequest) {
     // the recovery grant is already bounded by RECOVERY_COOKIE's own 15-minute
     // max age — a shorter leash than this timeout.
     const isReauthRoute = isPublicRoute || completingRecovery
+
+    // "One active session per account": lib/auth/session-guard.ts stamps
+    // app_metadata.active_session_id every time a fresh session is minted
+    // (login, recovery, invite/magic-link, PKCE exchange), superseding
+    // whatever was there before. If THIS request's own session_id claim no
+    // longer matches that value, a newer sign-in has happened elsewhere since
+    // this session was created — sign it out and say why, rather than
+    // leaving a phantom second session live until its JWT happens to expire.
+    // A missing marker (accounts that existed before this shipped, or an
+    // admin tool that overwrote app_metadata without preserving it) is
+    // treated as "not enforced yet", not as a mismatch — fails open, never
+    // kicks a session that was never given a marker to compare against.
+    // Skipped on reauth routes for the same reason the idle timeout is: a
+    // session in the middle of (re-)authenticating must not be second-guessed
+    // by state left over from whatever it's in the process of replacing.
+    const activeSessionId = user.app_metadata?.active_session_id as string | undefined
+    const thisSessionId = claims?.session_id
+    if (!isReauthRoute && activeSessionId && activeSessionId !== thisSessionId) {
+      await supabase.auth.signOut({ scope: 'local' })
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Signed in elsewhere' }, { status: 401 })
+      }
+      const response = redirectTo('/login', '?concurrent=1')
+      response.cookies.delete({ name: IDLE_COOKIE, path: '/' })
+      // Belt-and-suspenders for the query string above — see the comment on
+      // CONCURRENT_KICK_COOKIE for why this exists.
+      response.cookies.set(CONCURRENT_KICK_COOKIE, '1', {
+        path: '/',
+        maxAge: 10,
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: siteOrigin.startsWith('https://'),
+      })
+      return response
+    }
 
     if (
       !isReauthRoute &&

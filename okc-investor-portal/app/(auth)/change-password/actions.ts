@@ -14,6 +14,7 @@ import {
 } from '@/lib/auth/recovery'
 import { lookupResetLink } from '@/lib/auth/reset-link'
 import { firstPasswordProblem } from '@/lib/auth/password'
+import { claimActiveSession } from '@/lib/auth/session-guard'
 import { audit } from '@/lib/audit'
 
 // `needsMfa` tells the client to drop back to the TOTP challenge: the session
@@ -132,6 +133,15 @@ export async function changePassword(
   // Security safeguard: a password change invalidates every other session
   // (stolen or forgotten logins elsewhere), keeping only this one.
   await supabase.auth.signOut({ scope: 'others' })
+
+  // Claim this session as the account's one allowed session (§3.1). Needed
+  // even though signOut above already killed every other real session:
+  // without this, a recovery-flow session (which never went through login()'s
+  // claimActiveSession call) would carry a stale or missing marker and the
+  // proxy's concurrent-session check would immediately sign THIS session back
+  // out on the very next page load — locking the user out right after they
+  // just reset their password.
+  await claimActiveSession(supabase, user.id, user.app_metadata)
 
   // Clear the first-login flag for invited users. This lives in app_metadata
   // so only the service-role client can change it; spread the existing

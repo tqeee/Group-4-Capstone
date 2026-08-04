@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeRole, ROLE_HOME } from '@/lib/auth/roles'
 import { IDLE_COOKIE, IDLE_TIMEOUT_MS } from '@/lib/auth/idle'
+import { claimActiveSession } from '@/lib/auth/session-guard'
 import { prisma } from '@/lib/db'
 import { audit } from '@/lib/audit'
 
@@ -99,6 +100,15 @@ export async function login(
   // blocks everything else until then.
   const hasVerifiedFactor =
     user?.factors?.some((factor) => factor.status === 'verified') ?? false
+
+  // Claim this as the account's one allowed session (§3.1 — no two people
+  // signed in on the same login at once) before any redirect, so whichever
+  // page loads next already sees a consistent marker. Safe to do before the
+  // MFA challenge: challengeAndVerify elevates THIS session's AAL, it doesn't
+  // mint a new one, so the session_id claimed here stays valid through it.
+  if (user) {
+    await claimActiveSession(supabase, user.id, user.app_metadata)
+  }
 
   await audit('LOGIN_SUCCESS', {
     actor: email,
