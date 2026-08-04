@@ -75,10 +75,12 @@ async function ensureAuthUser(email: string, role: string, name: string): Promis
 async function main() {
   console.log('Seeding fund…')
   // ALPHA (formerly XAU). Renamed so it stops colliding with GOLD, which holds
-  // the firm's real broker workbook — both trade XAUUSD, and two funds named
-  // after gold made the ops/admin fund lists impossible to tell apart. The
-  // deals below are synthetic, generated here purely to give the demo
-  // investors a shareholding-split story; the real dataset lives in GOLD.
+  // the firm's real broker workbook: both were named after gold AND both traded
+  // XAUUSD, so neither the fund lists nor an individual deal row told you which
+  // fund you were looking at. ALPHA's deals below are synthetic — generated
+  // here purely to give the demo investors a shareholding-split story — and now
+  // trade EURUSD so the two funds are distinguishable end to end. The firm's
+  // real dataset lives in GOLD.
   const fund = await prisma.fund.upsert({
     where: { code: 'ALPHA' },
     update: {},
@@ -176,12 +178,16 @@ async function main() {
         entry: 1,
         positionId: position++,
         volume: 0.5 + i * 0.25,
-        price: 3305 + Math.round(Math.random() * 400) / 10,
+        // EURUSD so ALPHA's instrument differs from GOLD's XAUUSD — with both
+        // funds on the same symbol there was no way to tell from a deal row
+        // which fund it belonged to. Price kept in a realistic EUR/USD band
+        // (~1.0800–1.1200); the P&L series below is unaffected either way.
+        price: 1.08 + Math.round(Math.random() * 400) / 10000,
         commission: 0,
         swap: 0,
         profit,
         fee: 0,
-        symbol: 'XAUUSD',
+        symbol: 'EURUSD',
         comment: 'ea-close',
       })
     }
