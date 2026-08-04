@@ -155,8 +155,10 @@ export async function POST(request: NextRequest) {
     // Verifying a link mints a NEW session (possibly for a different user), so
     // the previous session's idle timestamp must not carry over — otherwise a
     // stale one sends the user straight back out. Same reasoning as the login
-    // action; a missing cookie just restarts the clock.
-    response.cookies.delete(IDLE_COOKIE)
+    // action; a missing cookie just restarts the clock. path: '/' must match
+    // how the cookie was set (idleCookieOptions) or the delete silently
+    // no-ops, leaving the stale timestamp in place.
+    response.cookies.delete({ name: IDLE_COOKIE, path: '/' })
     if (isRecovery) {
       response.cookies.set(RECOVERY_COOKIE, '1', recoveryCookieOptions(secure))
     }
@@ -180,7 +182,9 @@ export async function POST(request: NextRequest) {
       // Same reasoning as ok(): whoever arrives here is starting a fresh
       // authentication, so a previous session's idle timestamp must not send
       // them straight back out. A missing cookie just restarts the clock.
-      response.cookies.delete(IDLE_COOKIE)
+      // path: '/' must match how the cookie was set (idleCookieOptions) or
+      // the delete silently no-ops, leaving the stale timestamp in place.
+      response.cookies.delete({ name: IDLE_COOKIE, path: '/' })
       response.cookies.set(RESET_TOKEN_COOKIE, tokenHash, recoveryCookieOptions(secure))
       return response
     }
