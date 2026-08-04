@@ -11,6 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "ledger:check": "tsx scripts/rebuild-ledgers.ts --check",
+    "ledger:rebuild": "tsx scripts/rebuild-ledgers.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

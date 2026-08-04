@@ -5,7 +5,7 @@ import Link from 'next/link';
 import AuthBrandPanel from '@/components/auth/AuthBrandPanel';
 import { requestPasswordReset } from './actions';
 
-export default function ForgotPasswordClient({ linkError }) {
+export default function ForgotPasswordClient({ linkError, expired }) {
   const [state, formAction, isPending] = useActionState(requestPasswordReset, undefined);
 
   return (
@@ -28,7 +28,9 @@ export default function ForgotPasswordClient({ linkError }) {
 
           {linkError && !state && (
             <p className="auth-status-message status-error mb-[clamp(1rem,1.5vw,1.5rem)]">
-              That reset link is invalid or has expired. Request a new one below.
+              {expired
+                ? 'That reset link has expired — links are valid for 20 minutes. Request a new one below.'
+                : 'That reset link is invalid or has already been used. Request a new one below.'}
             </p>
           )}
 

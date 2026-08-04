@@ -5,34 +5,19 @@ import { useRouter } from 'next/navigation';
 import AuthBrandPanel from '@/components/auth/AuthBrandPanel';
 import { createClient } from '@/lib/supabase/client';
 import { logMfaEvent } from '@/app/(auth)/mfa/actions';
+import {
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_RULES,
+} from '@/lib/auth/password';
 import { changePassword } from './actions';
 
-// Mirror of what actually rejects a password, so the checklist can never show
-// all-green on something the server will refuse:
-//   - 12..72 characters      -> changePassword() in ./actions.ts
-//   - all four char classes  -> the Supabase project's own password policy,
-//                               which otherwise only surfaces as a raw
-//                               `weak_password` message after submitting.
-// Ported from origin/jinrui 8f5bd69 (which predates the server/client split of
-// this page), with a cross for unmet rules and the upper length bound added.
-const MIN_PASSWORD_LENGTH = 12;
-const MAX_PASSWORD_LENGTH = 72;
-
-const REQUIREMENTS = [
-  {
-    id: 'length',
-    label: `Between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters`,
-    test: pw => pw.length >= MIN_PASSWORD_LENGTH && pw.length <= MAX_PASSWORD_LENGTH,
-  },
-  { id: 'uppercase', label: 'One uppercase letter', test: pw => /[A-Z]/.test(pw) },
-  { id: 'lowercase', label: 'One lowercase letter', test: pw => /[a-z]/.test(pw) },
-  { id: 'number', label: 'One number', test: pw => /[0-9]/.test(pw) },
-  {
-    id: 'special',
-    label: 'One special character (e.g. ! @ # $ %)',
-    test: pw => /[^A-Za-z0-9]/.test(pw),
-  },
-];
+// The checklist renders the same rules the server enforces (lib/auth/password),
+// so it can never show all-green on something the submit will refuse. It was
+// ported from origin/jinrui 8f5bd69 — which predates both the server/client
+// split of this page and the shared rule module — with a cross for unmet rules
+// and the upper length bound added.
+const REQUIREMENTS = PASSWORD_RULES;
 
 function CheckItem({ met, started, label }) {
   // Neutral until they start typing — a wall of red on an empty form reads as
@@ -103,7 +88,7 @@ function EyeIcon({ visible }) {
 //
 // The challenge runs browser-to-Supabase directly (same as /mfa); only the
 // audit trail goes through the server.
-export default function ChangePasswordClient({ needsMfa }) {
+export default function ChangePasswordClient({ needsMfa, accountEmail = null }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [state, formAction, isPending] = useActionState(changePassword, undefined);
@@ -166,13 +151,28 @@ export default function ChangePasswordClient({ needsMfa }) {
   }
 
   return (
-    <main className="flex min-h-screen">
+    // Locked to the viewport: this page is the tallest of the auth screens
+    // (checklist + confirm field + error banner + the MFA step), and letting
+    // the document scroll dragged the whole split with it, exposing empty
+    // space above and below both panels.
+    <main className="flex h-dvh overflow-hidden">
 
       <AuthBrandPanel />
 
-      {/* RIGHT PANEL */}
-      <section className="flex w-1/2 items-center justify-center bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)]">
-        <div className="w-full max-w-xl">
+      {/* RIGHT PANEL — the only scrollable region, and only when it needs to be.
+          my-auto on the child rather than items-center here: centring a flex
+          child that outgrows its scroll container pushes its top out of reach,
+          because the overflow spills in both directions. Auto margins collapse
+          to zero once the content is taller, so it simply starts at the top.
+
+          `relative` is load-bearing, not decoration: overflow does not clip an
+          absolutely positioned descendant unless the scroller is also its
+          containing block. Without it the sr-only aria-live tally (Tailwind's
+          .sr-only is position:absolute) resolved against the document instead
+          and added 9px of page scroll — invisible, but enough to unlock the
+          whole view and reintroduce the blank bands. */}
+      <section className="relative flex w-1/2 justify-center overflow-y-auto bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)] py-[clamp(2rem,4vw,4rem)]">
+        <div className="my-auto w-full max-w-xl">
 
           {!mfaCleared ? (
             <>
@@ -229,10 +229,36 @@ export default function ChangePasswordClient({ needsMfa }) {
                 Set a new password
               </h2>
 
-              <p className="mb-[clamp(2rem,3vw,3.5rem)] text-[clamp(1rem,1.2vw,1.25rem)] leading-relaxed text-[#6b7894]">
+              <p className="mb-[clamp(1rem,1.5vw,1.5rem)] text-[clamp(1rem,1.2vw,1.25rem)] leading-relaxed text-[#6b7894]">
                 Choose a new password to secure your account before continuing.
                 Any other signed-in sessions will be logged out.
               </p>
+
+              {/* Whose password this is about. A reset link authenticates as
+                  its own recipient, so on a shared machine the account being
+                  changed is not necessarily the one that was signed in. */}
+              {accountEmail && (
+                <p className="mb-[clamp(2rem,3vw,3.5rem)] flex items-center gap-2 rounded-xl border border-[#d8e1ef] bg-white px-4 py-3 text-[clamp(0.875rem,0.95vw,1rem)] text-slate-600">
+                  <svg
+                    className="h-4 w-4 flex-shrink-0 text-slate-400"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206"
+                    />
+                  </svg>
+                  <span>
+                    Setting a new password for{' '}
+                    <span className="font-semibold text-slate-900">{accountEmail}</span>
+                  </span>
+                </p>
+              )}
 
               <form action={formAction}>
 

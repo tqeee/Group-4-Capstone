@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { getSiteOrigin } from '@/lib/site-url'
-import { RECOVERY_COOKIE, RECOVERY_COOKIE_MAX_AGE } from '@/lib/auth/recovery'
+import {
+  RECOVERY_COOKIE,
+  RESET_TOKEN_COOKIE,
+  recoveryCookieOptions,
+} from '@/lib/auth/recovery'
+import { lookupResetLink } from '@/lib/auth/reset-link'
 import { IDLE_COOKIE } from '@/lib/auth/idle'
 import { audit } from '@/lib/audit'
 
@@ -15,6 +20,15 @@ import { audit } from '@/lib/audit'
 // So GET does NOT verify: it renders a tiny interstitial with a Continue button.
 // Scanners fetch the page but don't press buttons, so the token survives. The
 // token is only spent on the POST below, triggered by a real click.
+//
+// RECOVERY links go further and are not spent here at all. Verifying a token is
+// irreversible, so doing it on arrival meant merely OPENING the email burned
+// the link: close the tab, click it again, and a perfectly valid reset read as
+// "invalid or has expired". Instead the token is checked against the database
+// (lookupResetLink — a read, not a redemption), stashed in a cookie, and only
+// redeemed by changePassword() at the moment a new password is accepted. Until
+// then the same link keeps working, on this device or any other, for as long as
+// RESET_LINK_MAX_AGE_MS allows.
 
 function safeNext(raw: string | null | undefined): string {
   const v = raw ?? '/change-password'
@@ -129,7 +143,9 @@ export async function POST(request: NextRequest) {
   // request host would otherwise leak into the Location header. Use 303 so the
   // browser issues a GET to the destination after this POST.
   const origin = await getSiteOrigin()
-  const fail = () => NextResponse.redirect(new URL('/forgot-password?error=link', origin), 303)
+  const secure = origin.startsWith('https://')
+  const fail = (reason: 'link' | 'expired' = 'link') =>
+    NextResponse.redirect(new URL(`/forgot-password?error=${reason}`, origin), 303)
 
   // Recovery links land on /change-password, but that session is AAL1 and the
   // proxy's TOTP gate would bounce it to /mfa first. Mark it so the proxy lets
@@ -142,18 +158,48 @@ export async function POST(request: NextRequest) {
     // action; a missing cookie just restarts the clock.
     response.cookies.delete(IDLE_COOKIE)
     if (isRecovery) {
-      response.cookies.set(RECOVERY_COOKIE, '1', {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: origin.startsWith('https://'),
-        path: '/',
-        maxAge: RECOVERY_COOKIE_MAX_AGE,
-      })
+      response.cookies.set(RECOVERY_COOKIE, '1', recoveryCookieOptions(secure))
     }
     return response
   }
 
   const supabase = await createClient()
+
+  // ── Password recovery: check the token, don't redeem it ──────────────────
+  if (tokenHash && type === 'recovery') {
+    const link = await lookupResetLink(tokenHash)
+
+    if (link.status === 'valid') {
+      await audit('AUTH_LINK_OPENED', { actor: link.email, detail: 'recovery' })
+
+      // Pinned to /change-password: the cookie below exempts that one path and
+      // nothing else, so honouring an arbitrary ?next= here would land the
+      // visitor on a page the proxy immediately bounces to /login.
+      const target = next.startsWith('/change-password') ? next : '/change-password'
+      const response = NextResponse.redirect(new URL(target, origin), 303)
+      // Same reasoning as ok(): whoever arrives here is starting a fresh
+      // authentication, so a previous session's idle timestamp must not send
+      // them straight back out. A missing cookie just restarts the clock.
+      response.cookies.delete(IDLE_COOKIE)
+      response.cookies.set(RESET_TOKEN_COOKIE, tokenHash, recoveryCookieOptions(secure))
+      return response
+    }
+
+    // The token is gone. If this browser is already mid-reset — it holds the
+    // recovery grant and a live session — the link did its job and was spent by
+    // an earlier attempt on this same flow, so let them carry on rather than
+    // showing "invalid". changePassword() deletes that cookie on success, so a
+    // COMPLETED reset can never be resumed this way.
+    if (request.cookies.get(RECOVERY_COOKIE)?.value === '1') {
+      const { data: resumed } = await supabase.auth.getUser()
+      if (resumed?.user) {
+        return NextResponse.redirect(new URL('/change-password', origin), 303)
+      }
+    }
+
+    await audit('AUTH_LINK_REJECTED', { detail: `recovery: ${link.status}`, success: false })
+    return fail(link.status === 'expired' ? 'expired' : 'link')
+  }
 
   if (tokenHash && type) {
     const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })

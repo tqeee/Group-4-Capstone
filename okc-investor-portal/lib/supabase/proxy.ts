@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { normalizeRole, requiredRoleForPath, ROLE_HOME } from '@/lib/auth/roles'
-import { RECOVERY_COOKIE } from '@/lib/auth/recovery'
+import { RECOVERY_COOKIE, RESET_TOKEN_COOKIE } from '@/lib/auth/recovery'
 import {
   IDLE_COOKIE,
   IDLE_TIMEOUT_MS,
@@ -100,7 +100,16 @@ export async function updateSession(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   )
 
-  if (!user && !isPublicRoute) {
+  // A password-reset link no longer signs anyone in on arrival: its token stays
+  // unspent until the new password is accepted, so the visitor reaches
+  // /change-password with NO session — only a cookie carrying that token. Let
+  // them through to the one page that can finish the job. The cookie grants
+  // nothing by itself: the page and the action each re-check the token against
+  // the database before showing or changing anything.
+  const completingReset =
+    Boolean(request.cookies.get(RESET_TOKEN_COOKIE)?.value) && pathname === '/change-password'
+
+  if (!user && !isPublicRoute && !completingReset) {
     if (isApiRoute) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
@@ -111,8 +120,12 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     // See the comment on the MFA gate below for what this cookie means.
     // Computed up here because the idle timeout has to know about it too.
+    // `completingReset` counts as well: someone already signed in can open a
+    // reset link, and that session must not be bounced away from the page the
+    // link is trying to reach.
     const completingRecovery =
-      request.cookies.get(RECOVERY_COOKIE)?.value === '1' && pathname === '/change-password'
+      completingReset ||
+      (request.cookies.get(RECOVERY_COOKIE)?.value === '1' && pathname === '/change-password')
 
     // The idle timeout guards an unattended session that is *using* the portal.
     // It must not fire on the routes people use to (re-)authenticate, or a
