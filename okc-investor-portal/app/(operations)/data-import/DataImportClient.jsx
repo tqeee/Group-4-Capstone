@@ -322,24 +322,6 @@ export default function DataImportClient({ batches, funds }) {
               <p className="mt-4 text-sm text-gray-400">No imports yet.</p>
             )}
           </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-900">Expected format</h2>
-            <p className="mt-3 text-sm leading-6 text-gray-600">
-              The raw broker deal export (dataset 5.4). Required columns:{' '}
-              <code className="rounded bg-gray-50 px-1 font-mono text-xs">ticket</code>,{' '}
-              <code className="rounded bg-gray-50 px-1 font-mono text-xs">time</code>,{' '}
-              <code className="rounded bg-gray-50 px-1 font-mono text-xs">profit</code>,{' '}
-              <code className="rounded bg-gray-50 px-1 font-mono text-xs">symbol</code>.
-              Optional: order, type, entry, position_id, volume, price, commission, swap, fee,
-              comment. <code className="rounded bg-gray-50 px-1 font-mono text-xs">time</code>{' '}
-              accepts unix seconds, milliseconds, or a date string.
-            </p>
-            <p className="mt-3 text-sm leading-6 text-gray-600">
-              After each import the fund ledger is replayed (§8.1), so dashboards update
-              immediately.
-            </p>
-          </section>
         </aside>
       </div>
     </div>
