@@ -18,7 +18,7 @@ export default async function OperationsLayout({ children }) {
       email={email}
       roleLabel="Operations"
       badge="Operations"
-      brandLetter="O"
+      role="operations"
       navItems={navItems}
     >
       {children}
