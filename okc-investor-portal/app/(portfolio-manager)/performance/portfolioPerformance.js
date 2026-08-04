@@ -1,15 +1,34 @@
-import { compoundReturn } from '@/lib/finance';
- 
+// Performance maths for the portfolio manager views (§3.5), driven by the
+// fund's daily NAV series. The return figures follow §8.2 (ii): the daily %
+// return is daily P&L / total assets at the beginning of the day, and a
+// period's return is those daily returns compounded.
+//
+// This deliberately does NOT measure return as (ending value / starting value)
+// - 1. Deposits and withdrawals change the ending value without the fund
+// having earned anything, so that formula reports a fund which took a $500k
+// deposit on a $100k base and made zero P&L as up 500%. Compounding the daily
+// returns strips the timing of investor capital out, which is the whole point
+// of the metric — and it is what lib/finance.ts `compoundReturn` already does
+// for the investor-facing pages, so the two agree (asserted in the tests).
+
 export function calculateEndingValue(beginningValue, dailyPnL) {
   return beginningValue + dailyPnL;
 }
- 
+
 export function calculateDailyReturn(beginningValue, dailyPnL) {
-  if (!beginningValue) return 0;
- 
+  // A day the fund opened with nothing (or negative, after a loss deeper than
+  // its capital) has no meaningful base to measure against — 0 rather than a
+  // divide-by-zero or a sign-flipped percentage.
+  if (!(beginningValue > 0)) return 0;
+
   return (dailyPnL / beginningValue) * 100;
 }
- 
+
+// Compounds a list of daily % returns into a single period % return.
+export function compoundDailyReturns(dailyReturns) {
+  return (dailyReturns.reduce((factor, r) => factor * (1 + r / 100), 1) - 1) * 100;
+}
+
 export function calculatePortfolioPerformance(transactions) {
   if (!Array.isArray(transactions) || transactions.length === 0) {
     return {
@@ -23,16 +42,20 @@ export function calculatePortfolioPerformance(transactions) {
       chartData: [],
     };
   }
- 
+
   const initialCapital = transactions[0].beginningValue;
-  let nextBeginningValue = initialCapital;
   let cumulativePnL = 0;
   let netDeposits = 0;
   let netWithdrawals = 0;
-  let cumulativeFactor = 1; // running compounded-return factor
- 
-  const performanceRows = transactions.map((transaction, index) => {
-    const beginningValue = index === 0 ? transaction.beginningValue : nextBeginningValue;
+  // Running compounded factor, so each row can report the period-to-date
+  // return without rescanning everything before it.
+  let cumulativeFactor = 1;
+
+  const performanceRows = transactions.map(transaction => {
+    // The ledger guarantees each day opens exactly where the previous one
+    // closed, so the stored beginning value is authoritative — no need to
+    // re-derive it and risk drifting away from the persisted NAV.
+    const beginningValue = transaction.beginningValue;
     const dailyPnL = transaction.dailyPnL;
     const deposits = transaction.deposits || 0;
     const withdrawals = transaction.withdrawals || 0;
@@ -43,17 +66,12 @@ export function calculatePortfolioPerformance(transactions) {
     // pnlShare + flow.
     const endingValue = calculateEndingValue(beginningValue, dailyPnL) + deposits - withdrawals;
     const dailyReturn = calculateDailyReturn(beginningValue, dailyPnL);
- 
+
     cumulativePnL += dailyPnL;
     netDeposits += deposits;
     netWithdrawals += withdrawals;
-    nextBeginningValue = endingValue;
- 
-    // Compound this day's return into the running factor (skip $0-opening
-    // days, same guard as compoundReturn above).
-    if (beginningValue > 0) cumulativeFactor *= 1 + dailyPnL / beginningValue;
-    const cumulativeReturn = (cumulativeFactor - 1) * 100;
- 
+    cumulativeFactor *= 1 + dailyReturn / 100;
+
     return {
       date: transaction.date,
       beginningValue,
@@ -61,20 +79,17 @@ export function calculatePortfolioPerformance(transactions) {
       dailyReturn,
       endingValue,
       cumulativePnL,
-      cumulativeReturn,
+      cumulativeReturn: (cumulativeFactor - 1) * 100,
     };
   });
- 
-  const portfolioValue = initialCapital + cumulativePnL + netDeposits - netWithdrawals;
-  const todayPnL = performanceRows[performanceRows.length - 1].dailyPnL;
+
+  const lastRow = performanceRows[performanceRows.length - 1];
+  // The last day's ending value already carries every prior day's P&L and
+  // flows, so it is the portfolio's current worth by construction.
+  const portfolioValue = lastRow.endingValue;
+  const todayPnL = lastRow.dailyPnL;
   const totalPnL = cumulativePnL;
- 
-  // Fund return, properly compounded (Appendix 8.2 ii) — not a simple
-  // (end/start - 1) ratio, which distorts whenever the fund had both up and
-  // down days rather than one smooth move.
-  const fundReturn =
-    compoundReturn(performanceRows.map(row => ({ openingBalance: row.beginningValue, pnl: row.dailyPnL }))) * 100;
- 
+  const fundReturn = lastRow.cumulativeReturn;
   const bestDay = performanceRows.reduce((best, row) => (row.dailyPnL > best.dailyPnL ? row : best), performanceRows[0]);
   const worstDay = performanceRows.reduce((worst, row) => (row.dailyPnL < worst.dailyPnL ? row : worst), performanceRows[0]);
   const chartData = performanceRows.map(row => ({
@@ -85,9 +100,11 @@ export function calculatePortfolioPerformance(transactions) {
     dailyReturn: row.dailyReturn,
     fundReturn: row.cumulativeReturn,
   }));
- 
+
   return {
     portfolioValue,
+    initialCapital,
+    netContributions: netDeposits - netWithdrawals,
     todayPnL,
     totalPnL,
     fundReturn,
