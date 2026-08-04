@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import { calculatePortfolioPerformance } from './portfolioPerformance';
 import { fmtMoney, fmtPct } from '@/lib/format';
 import PortfolioChart from '../port-components/PortfolioManagerChart';
+import ReturnDriversPanel from '../port-components/ReturnDriversPanel';
+import WhatIfSimulator from '../port-components/WhatIfSimulator';
 
 const monthIndex = {
   Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
@@ -325,7 +327,17 @@ export default function PerformanceClient({ funds, seriesByFund }) {
                 {hoveredPoint && (
                   <div
                     className="pointer-events-none absolute rounded-xl border border-gray-200 bg-white p-4 text-xs shadow-lg"
-                    style={{ left: hoveredPoint.caretX, top: hoveredPoint.caretY, transform: 'translate(-50%, -110%)' }}
+                    style={{
+                      left: hoveredPoint.caretX,
+                      top: hoveredPoint.caretY,
+                      transform: 'translate(-50%, -110%)',
+                      // Chart.js's own built-in tooltip (used on the Investor
+                      // page) animates its position smoothly by default; this
+                      // custom tooltip has to opt into the same feel, or it
+                      // teleports between points instead of gliding —
+                      // especially obvious with few data points (e.g. 1W).
+                      transition: 'left 100ms ease-out, top 100ms ease-out',
+                    }}
                   >
                     <p className="mb-3 text-sm font-bold text-gray-900">{hoveredPoint.date}</p>
                     <div className="space-y-2">
@@ -450,6 +462,26 @@ export default function PerformanceClient({ funds, seriesByFund }) {
               </tbody>
             </table>
           </section>
+
+          <div className="mt-5">
+            <ReturnDriversPanel
+              key={selectedFund}
+              fundId={selectedFund}
+              fundName={selectedFundName}
+              fromDate={fromDate}
+              toDate={toDate}
+            />
+          </div>
+
+          <div className="mt-5">
+            <WhatIfSimulator
+              key={selectedFund}
+              fundId={selectedFund}
+              fundName={selectedFundName}
+              fromDate={fromDate}
+              toDate={toDate}
+            />
+          </div>
         </>
       )}
     </div>

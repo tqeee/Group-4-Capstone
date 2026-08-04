@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db'
 import { compoundReturn } from '@/lib/ledger'
 import { fmtDate } from '@/lib/format'
+import { getSettings } from '@/lib/settings'
+import { summarizeReturnDrivers, type ReturnDriverBreakdown } from '@/lib/returnDrivers'
 
 // Read models for the portal pages. Everything returned here is plain JSON
 // (numbers/strings/booleans) so it can cross the server->client boundary.
@@ -475,4 +477,109 @@ export async function getFundDailySeries(fundId: string): Promise<FundDailySerie
       withdrawals: netFlows < 0 ? -netFlows : 0,
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio Manager — §3.5 Support Performance Analysis
+// ---------------------------------------------------------------------------
+
+// Breaks the fund's return down into drivers (by instrument, by trade side,
+// and gross-P&L-vs-costs-vs-fee) for a given reporting window. The pure
+// aggregation lives in lib/returnDrivers.ts; this just fetches the dataset
+// 5.4 rows for the window and the management-fee accrual to feed it, mirroring
+// what rebuildFundLedger() and computeFundLedger() already book so the two
+// always reconcile.
+export async function getFundReturnDrivers(
+  fundId: string,
+  fromIso: string,
+  toIso: string
+): Promise<ReturnDriverBreakdown> {
+  // FundDailyNav.date / Deal.time are compared as UTC calendar days, matching
+  // how lib/ledger.ts buckets both.
+  const fromDay = new Date(`${fromIso}T00:00:00.000Z`)
+  const toDayExclusive = new Date(new Date(`${toIso}T00:00:00.000Z`).getTime() + 24 * 60 * 60 * 1000)
+
+  const [dealsRaw, navInRange, settings] = await Promise.all([
+    prisma.deal.findMany({
+      // type 2 = balance rows — money movement, not trading P&L (same filter
+      // rebuildFundLedger applies before computeFundLedger sees them).
+      where: { fundId, type: { not: 2 }, time: { gte: fromDay, lt: toDayExclusive } },
+      select: { symbol: true, type: true, profit: true, commission: true, swap: true, fee: true },
+    }),
+    prisma.fundDailyNav.findMany({
+      where: { fundId, date: { gte: fromDay, lt: toDayExclusive } },
+      select: { openingBalance: true },
+    }),
+    getSettings(),
+  ])
+
+  const managementFeeAnnualPct = Number(settings.managementFee)
+  const managementFeeTotal = navInRange.reduce(
+    (sum, row) => sum + num(row.openingBalance) * (managementFeeAnnualPct / 100 / 365),
+    0
+  )
+
+  return summarizeReturnDrivers(
+    dealsRaw.map(d => ({
+      symbol: d.symbol,
+      type: d.type,
+      profit: num(d.profit),
+      commission: num(d.commission),
+      swap: num(d.swap),
+      fee: num(d.fee),
+    })),
+    managementFeeTotal
+  )
+}
+
+// Dataset 5.3 (Portfolio Holdings) for a single fund: each investor's %
+// shareholding as of a given date. Reuses the already-persisted
+// InvestorDailyLedger.closingSharePct — §8.1's derived holdings — rather
+// than recomputing anything, so this always agrees with what the ledger
+// actually booked.
+export type FundInvestorShare = {
+  investorId: string
+  name: string
+  email: string
+  sharePct: number // 0-100
+  value: number
+}
+
+export async function getFundInvestorShares(
+  fundId: string,
+  asOfIso: string
+): Promise<{ asOfDate: string | null; investors: FundInvestorShare[] }> {
+  const asOf = new Date(`${asOfIso}T00:00:00.000Z`)
+
+  // The requested "as of" date (the Return Drivers period's end date) may
+  // fall on a day the ledger didn't persist a row for that investor (e.g. a
+  // weekend, or a date past the fund's latest computed day) — fall back to
+  // the closest prior day that actually has ledger rows.
+  const latest = await prisma.investorDailyLedger.findFirst({
+    where: { fundId, date: { lte: asOf } },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  })
+  if (!latest) return { asOfDate: null, investors: [] }
+
+  const rows = await prisma.investorDailyLedger.findMany({
+    where: { fundId, date: latest.date },
+    include: { investor: true },
+  })
+
+  const investors = rows
+    // A closed-out investor (withdrew everything) still has a historical
+    // row some days but drops to a 0% share once their value hits zero —
+    // no point listing them as a current shareholder.
+    .filter(r => num(r.closingSharePct) > 0)
+    .map(r => ({
+      investorId: r.investorId,
+      name: r.investor.name,
+      email: r.investor.email,
+      sharePct: num(r.closingSharePct) * 100,
+      value: num(r.closingValue),
+    }))
+    .sort((a, b) => b.sharePct - a.sharePct)
+
+  return { asOfDate: latest.date.toISOString().slice(0, 10), investors }
 }
