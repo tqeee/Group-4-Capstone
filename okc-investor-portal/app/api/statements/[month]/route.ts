@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/db'
 import { getInvestorByAuth } from '@/lib/queries'
-import { getFundLabels } from '@/lib/fundLabels'
 import { audit } from '@/lib/audit'
 
 // GET /api/statements/2026-03 — the signed-in investor's account statement for
@@ -28,14 +27,11 @@ export async function GET(
   const start = new Date(Date.UTC(year, monthNum - 1, 1))
   const end = new Date(Date.UTC(year, monthNum, 1))
 
-  const [rows, labels] = await Promise.all([
-    prisma.investorDailyLedger.findMany({
-      where: { investorId: investor.id, date: { gte: start, lt: end } },
-      include: { fund: true },
-      orderBy: { date: 'asc' },
-    }),
-    getFundLabels(),
-  ])
+  const rows = await prisma.investorDailyLedger.findMany({
+    where: { investorId: investor.id, date: { gte: start, lt: end } },
+    include: { fund: true },
+    orderBy: { date: 'asc' },
+  })
   if (rows.length === 0) return new Response('No activity in this month', { status: 404 })
 
   // The per-day `flows` column was dropped from investor_daily_ledger, so
@@ -69,7 +65,7 @@ export async function GET(
     ['Date', 'Fund', 'Opening Value', 'Daily P&L', 'Deposits/Withdrawals', 'Closing Value', 'Fund Share %'],
     ...rows.map(r => [
       r.date.toISOString().slice(0, 10),
-      labels.get(r.fundId)?.name ?? 'Fund',
+      r.fund.name,
       Number(r.openingValue).toFixed(2),
       Number(r.pnl).toFixed(2),
       flowFor(r.fundId, r.date).toFixed(2),

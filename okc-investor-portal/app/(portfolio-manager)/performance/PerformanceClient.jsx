@@ -1,6 +1,8 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { calculatePortfolioPerformance } from './portfolioPerformance';
+import { fmtMoney, fmtPct } from '@/lib/format';
+import PortfolioChart from '../port-components/PortfolioManagerChart';
 
 const monthIndex = {
   Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
@@ -34,20 +36,13 @@ const addDays = (date, days) => {
   return nextDate;
 };
 
-const formatCurrency = value => {
-  const sign = value < 0 ? '-' : '';
-  const absoluteValue = Math.abs(value);
-  return `${sign}SGD ${absoluteValue.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-const formatPercent = value => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+// Thin wrappers so call sites stay the same, but formatting logic lives in
+// one shared place (lib/format) instead of being reimplemented — matches
+// the Dashboard and Investor pages.
+const formatCurrency = value => fmtMoney(value, { currency: 'SGD ' });
+const formatPercent = value => fmtPct(value);
 const valueTone = value => (value < 0 ? 'text-red-600' : value > 0 ? 'text-green-600' : 'text-gray-900');
 const formatMetricValue = (value, type) => (type === 'percent' ? formatPercent(value) : formatCurrency(value));
-
-const chartWidth = 900;
-const chartHeight = 340;
-const chartPaddingX = 44;
-const chartPaddingY = 30;
 
 export default function PerformanceClient({ funds, seriesByFund }) {
   const defaultFundId = useMemo(() => {
@@ -94,6 +89,7 @@ export default function PerformanceClient({ funds, seriesByFund }) {
     }
     setSelectedRange('ALL');
     setHoveredPoint(null);
+    setSelectedMonthKey(null);
   };
 
   const filteredData = useMemo(() => {
@@ -124,25 +120,10 @@ export default function PerformanceClient({ funds, seriesByFund }) {
     fundReturn: row.cumulativeReturn,
   })), [rows]);
 
-  const chartPoints = useMemo(() => {
-    if (chartData.length === 0) return [];
-    const metricValues = chartData.map(point => point[selectedMetric]);
-    const minMetricValue = Math.min(...metricValues);
-    const maxMetricValue = Math.max(...metricValues);
-    const valueRange = maxMetricValue - minMetricValue || 1;
-
-    return chartData.map((point, index) => {
-      const x = chartPaddingX + (index / (chartData.length - 1 || 1)) * (chartWidth - chartPaddingX * 2);
-      const y = chartPaddingY + ((maxMetricValue - point[selectedMetric]) / valueRange) * (chartHeight - chartPaddingY * 2);
-      return { ...point, x, y, metricValue: point[selectedMetric] };
-    });
-  }, [chartData, selectedMetric]);
-
-  const polylinePoints = chartPoints.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
-  const chartBaseline = chartHeight - chartPaddingY;
-  const areaPoints = chartPoints.length > 0 ? `${chartPaddingX},${chartBaseline} ${polylinePoints} ${chartWidth - chartPaddingX},${chartBaseline}` : '';
-  const gridLines = [0.2, 0.4, 0.6, 0.8].map(position => chartPaddingY + position * (chartHeight - chartPaddingY * 2));
-  const dateLabels = chartPoints.filter((_, index) => index % 3 === 0 || index === chartPoints.length - 1);
+  const chartPoints = useMemo(
+    () => chartData.map(point => ({ ...point, metricValue: point[selectedMetric] })),
+    [chartData, selectedMetric]
+  );
 
   const statistics = useMemo(() => {
     if (rows.length === 0) {
@@ -188,22 +169,48 @@ export default function PerformanceClient({ funds, seriesByFund }) {
     { label: 'Net Contributions', value: formatCurrency(netContributions), tone: valueTone(netContributions) },
   ];
 
+  const monthKey = dateStr => {
+    const [, month, year] = dateStr.split(' ');
+    return `${year}-${String(monthIndex[month] + 1).padStart(2, '0')}`;
+  };
+ 
+  const availableMonths = useMemo(() => {
+    const seen = new Map();
+    rows.forEach(row => {
+      const key = monthKey(row.date);
+      if (!seen.has(key)) {
+        const [, month, year] = row.date.split(' ');
+        seen.set(key, `${month} ${year}`);
+      }
+    });
+    return [...seen.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [rows]);
+ 
+  const [selectedMonthKey, setSelectedMonthKey] = useState(null);
+  const activeMonthKey = selectedMonthKey ?? availableMonths[0]?.[0] ?? null;
+  const monthRows = useMemo(
+    () => (activeMonthKey ? rows.filter(row => monthKey(row.date) === activeMonthKey) : []),
+    [rows, activeMonthKey]
+  );
+ 
   const handleRangeClick = range => {
     const dates = getRangeDates(range);
     setSelectedRange(range);
     setFromDate(dates.from);
     setToDate(dates.to);
     setHoveredPoint(null);
+    setSelectedMonthKey(null);
   };
 
   const handleApplyCustomRange = () => {
     setSelectedRange('Custom');
     setHoveredPoint(null);
+    setSelectedMonthKey(null);
   };
 
   if (funds.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-sm text-gray-400">
+      <div className="card p-12 text-center text-sm text-gray-400">
         No funds configured yet.
       </div>
     );
@@ -213,12 +220,13 @@ export default function PerformanceClient({ funds, seriesByFund }) {
     <div>
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Performance</h1>
-          <p className="text-gray-400 text-sm mt-1">Detailed fund analytics for NAV, daily P&L, cumulative P&L, and fund return.</p>
+          <p className="section-label mb-1">PORTFOLIO MANAGER</p>
+          <h1 className="page-title">Performance</h1>
+          <p className="page-subtitle">Detailed fund analytics for NAV, daily P&L, cumulative P&L, and fund return.</p>
         </div>
       </div>
 
-      <div className="mb-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-5 card p-4">
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(220px,1fr)_minmax(0,2fr)]">
           <div>
             <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-400">Fund</label>
@@ -234,13 +242,13 @@ export default function PerformanceClient({ funds, seriesByFund }) {
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Date Range</p>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="flex flex-wrap gap-1">
                 {rangeOptions.map(range => (
                   <button
                     key={range}
                     type="button"
                     onClick={() => handleRangeClick(range)}
-                    className={`px-4 py-2 text-sm transition ${selectedRange === range ? 'bg-blue-700 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${selectedRange === range ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-700'}`}
                   >
                     {range}
                   </button>
@@ -255,20 +263,20 @@ export default function PerformanceClient({ funds, seriesByFund }) {
       </div>
 
       {!hasData ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-sm text-gray-400">
+        <div className="card p-12 text-center text-sm text-gray-400">
           No performance history yet for {selectedFundName}.
         </div>
       ) : (
         <>
-          <div className="mb-5 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Metric</span>
+          <div className="mb-5 card p-4">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="mr-2 section-label">METRIC</span>
               {metricOptions.map(metric => (
                 <button
                   key={metric.value}
                   type="button"
                   onClick={() => { setSelectedMetric(metric.value); setHoveredPoint(null); }}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition ${selectedMetric === metric.value ? 'bg-blue-700 text-white' : 'bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-700'}`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition ${selectedMetric === metric.value ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-700'}`}
                 >
                   {metric.label}
                 </button>
@@ -277,9 +285,9 @@ export default function PerformanceClient({ funds, seriesByFund }) {
           </div>
 
           <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)]">
-            <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <section className="card p-6">
               <div className="mb-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Fund analytics</p>
+                <p className="section-label mb-1">FUND ANALYTICS</p>
                 <h2 className="mt-2 text-xl font-bold text-gray-900">Fund Performance Over Time</h2>
                 <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-gray-500 md:grid-cols-3">
                   <p><span className="font-semibold text-gray-600">Fund:</span> {selectedFundName}</p>
@@ -291,59 +299,54 @@ export default function PerformanceClient({ funds, seriesByFund }) {
                   {selectedMetricConfig.label}
                 </div>
               </div>
-              <div className="relative h-[380px] rounded-lg border border-gray-100 bg-gradient-to-b from-white to-blue-50/30 p-4" onMouseLeave={() => setHoveredPoint(null)}>
+              <div className="relative h-[380px] rounded-lg border border-gray-100 bg-gradient-to-b from-white to-blue-50/30 p-4">
                 {chartPoints.length > 0 ? (
-                  <svg className="h-full w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} aria-label="Fund performance over time chart">
-                    {gridLines.map(lineY => (
-                      <line key={lineY} x1={chartPaddingX} x2={chartWidth - chartPaddingX} y1={lineY} y2={lineY} stroke="#e5e7eb" strokeDasharray="5 5" />
-                    ))}
-                    <line x1={chartPaddingX} x2={chartWidth - chartPaddingX} y1={chartBaseline} y2={chartBaseline} stroke="#d1d5db" />
-                    <polygon points={areaPoints} fill="#bfdbfe" opacity="0.55" />
-                    <polyline points={polylinePoints} fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                    {chartPoints.map(point => (
-                      <circle
-                        key={point.date}
-                        cx={point.x}
-                        cy={point.y}
-                        r="6"
-                        fill="white"
-                        stroke="#2563eb"
-                        strokeWidth="3"
-                        className="cursor-pointer"
-                        onMouseEnter={() => setHoveredPoint(point)}
-                      />
-                    ))}
-                    {dateLabels.map(point => (
-                      <text key={point.date} x={point.x} y={chartHeight - 6} textAnchor="middle" className="fill-gray-400 text-[12px]">
-                        {point.date.split(' ').slice(0, 2).join(' ')}
-                      </text>
-                    ))}
-                  </svg>
+                  <PortfolioChart
+                    data={chartPoints.map(p => ({ date: p.date, value: p.metricValue, pnl: p.dailyPnL }))}
+                    valueType={selectedMetricConfig.type}
+                    onHoverPoint={(index, x, y) => {
+                      setHoveredPoint(prev => {
+                        if (index === null) return prev === null ? prev : null;
+                        // Chart.js's external tooltip callback can re-fire during
+                        // a redraw with the exact same point/position, even with
+                        // no real mouse movement. Bailing out here (returning the
+                        // same object) when nothing actually changed stops that
+                        // from cascading into a render loop.
+                        if (prev && prev.date === chartPoints[index].date && prev.caretX === x && prev.caretY === y) {
+                          return prev;
+                        }
+                        return { ...chartPoints[index], caretX: x, caretY: y };
+                      });
+                    }}
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center text-sm text-gray-400">No performance data for this date range.</div>
                 )}
                 {hoveredPoint && (
-                  <div className="pointer-events-none absolute rounded-xl border border-gray-200 bg-white p-4 text-xs shadow-lg" style={{ left: `${Math.min(70, Math.max(8, (hoveredPoint.x / chartWidth) * 100))}%`, top: `${Math.min(62, Math.max(8, (hoveredPoint.y / chartHeight) * 100))}%` }}>
+                  <div
+                    className="pointer-events-none absolute rounded-xl border border-gray-200 bg-white p-4 text-xs shadow-lg"
+                    style={{ left: hoveredPoint.caretX, top: hoveredPoint.caretY, transform: 'translate(-50%, -110%)' }}
+                  >
                     <p className="mb-3 text-sm font-bold text-gray-900">{hoveredPoint.date}</p>
                     <div className="space-y-2">
-                      <div className="flex min-w-56 justify-between gap-5"><span className="text-gray-500">{selectedMetricConfig.label}</span><span className={`font-semibold ${valueTone(hoveredPoint.metricValue)}`}>{formatMetricValue(hoveredPoint.metricValue, selectedMetricConfig.type)}</span></div>
+                      <div className="flex min-w-56 justify-between gap-5"><span className="text-gray-500">{selectedMetricConfig.label}</span><span className={`font-semibold tabular-nums ${valueTone(hoveredPoint.metricValue)}`}>{formatMetricValue(hoveredPoint.metricValue, selectedMetricConfig.type)}</span></div>
                       <div className="flex justify-between gap-5"><span className="text-gray-500">Portfolio Value</span><span className="font-semibold text-gray-900">{formatCurrency(hoveredPoint.portfolioValue)}</span></div>
-                      <div className="flex justify-between gap-5"><span className="text-gray-500">Daily P&L</span><span className={`font-semibold ${valueTone(hoveredPoint.dailyPnL)}`}>{formatCurrency(hoveredPoint.dailyPnL)}</span></div>
-                      <div className="flex justify-between gap-5"><span className="text-gray-500">Fund Return</span><span className={`font-semibold ${valueTone(hoveredPoint.fundReturn)}`}>{formatPercent(hoveredPoint.fundReturn)}</span></div>
+                      <div className="flex justify-between gap-5"><span className="text-gray-500">Daily P&L</span><span className={`font-semibold tabular-nums ${valueTone(hoveredPoint.dailyPnL)}`}>{formatCurrency(hoveredPoint.dailyPnL)}</span></div>
+                      <div className="flex justify-between gap-5"><span className="text-gray-500">Fund Return</span><span className={`font-semibold tabular-nums ${valueTone(hoveredPoint.fundReturn)}`}>{formatPercent(hoveredPoint.fundReturn)}</span></div>
                     </div>
                   </div>
                 )}
               </div>
             </section>
 
-            <aside className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Selected period</p>
+            <aside className="card p-6">
+              <p className="section-label mb-1">SELECTED PERIOD</p>
               <h2 className="mt-2 text-lg font-bold text-gray-900">Performance Summary</h2>
               <div className="mt-5 divide-y divide-gray-100">
                 {summaryRows.map(row => (
                   <div key={row.label} className="flex items-center justify-between gap-4 py-4 text-sm first:pt-0 last:pb-0">
                     <span className="text-gray-500">{row.label}</span>
-                    <span className={`text-right font-semibold ${row.tone || 'text-gray-900'}`}>{row.value}</span>
+                    <span className={`text-right font-semibold tabular-nums ${row.tone || 'text-gray-900'}`}>{row.value}</span>
                   </div>
                 ))}
               </div>
@@ -351,7 +354,8 @@ export default function PerformanceClient({ funds, seriesByFund }) {
           </div>
 
           <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(320px,3fr)_minmax(0,7fr)]">
-            <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <section className="card p-6">
+              <p className="section-label mb-1">DAILY TRACK RECORD</p>
               <h2 className="text-lg font-bold text-gray-900">Performance Statistics</h2>
               <div className="mt-5 divide-y divide-gray-100">
                 {[
@@ -364,13 +368,14 @@ export default function PerformanceClient({ funds, seriesByFund }) {
                 ].map(row => (
                   <div key={row.label} className="flex items-center justify-between gap-4 py-3 text-sm first:pt-0 last:pb-0">
                     <span className="text-gray-500">{row.label}</span>
-                    <span className={`text-right font-semibold ${row.tone || 'text-gray-900'}`}>{row.value}</span>
+                    <span className={`text-right font-semibold tabular-nums ${row.tone || 'text-gray-900'}`}>{row.value}</span>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <section className="card p-6">
+              <p className="section-label mb-1">BY PERIOD</p>
               <h2 className="mb-4 text-lg font-bold text-gray-900">Rolling Returns</h2>
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-400">
@@ -385,9 +390,9 @@ export default function PerformanceClient({ funds, seriesByFund }) {
                   {rollingReturns.map(row => (
                     <tr key={row.period} className="border-b border-gray-100 transition last:border-0 hover:bg-gray-50">
                       <td className="px-4 py-4 font-semibold text-gray-900">{row.period}</td>
-                      <td className={`px-4 py-4 text-right font-semibold ${valueTone(row.returnPercent)}`}>{formatPercent(row.returnPercent)}</td>
-                      <td className={`px-4 py-4 text-right font-semibold ${valueTone(row.totalPnL)}`}>{formatCurrency(row.totalPnL)}</td>
-                      <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatCurrency(row.endingValue)}</td>
+                      <td className={`px-4 py-4 text-right font-semibold tabular-nums ${valueTone(row.returnPercent)}`}>{formatPercent(row.returnPercent)}</td>
+                      <td className={`px-4 py-4 text-right font-semibold tabular-nums ${valueTone(row.totalPnL)}`}>{formatCurrency(row.totalPnL)}</td>
+                      <td className="px-4 py-4 text-right font-semibold text-gray-900 tabular-nums">{formatCurrency(row.endingValue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -395,8 +400,24 @@ export default function PerformanceClient({ funds, seriesByFund }) {
             </section>
           </div>
 
-          <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold text-gray-900">Daily Performance</h2>
+          <section className="card p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="section-label mb-1">MONTHLY BREAKDOWN</p>
+                <h2 className="text-lg font-bold text-gray-900">Daily Performance</h2>
+              </div>
+              {availableMonths.length > 0 && (
+                <select
+                  value={activeMonthKey ?? ''}
+                  onChange={event => setSelectedMonthKey(event.target.value)}
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 outline-none focus:border-blue-400"
+                >
+                  {availableMonths.map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
             <table className="w-full table-fixed text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-400">
                 <tr>
@@ -410,20 +431,20 @@ export default function PerformanceClient({ funds, seriesByFund }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => (
+                {monthRows.map(row => (
                   <tr key={row.date} className="border-b border-gray-100 transition last:border-0 hover:bg-blue-50/40">
                     <td className="px-3 py-3 text-gray-700">{row.date}</td>
-                    <td className="px-3 py-3 text-right text-gray-700">{formatCurrency(row.beginningValue)}</td>
-                    <td className={`px-3 py-3 text-right font-semibold ${valueTone(row.dailyPnL)}`}>{formatCurrency(row.dailyPnL)}</td>
-                    <td className={`px-3 py-3 text-right ${valueTone(row.dailyReturn)}`}>{formatPercent(row.dailyReturn)}</td>
-                    <td className="px-3 py-3 text-right font-semibold text-gray-900">{formatCurrency(row.endingValue)}</td>
-                    <td className={`px-3 py-3 text-right font-semibold ${valueTone(row.cumulativePnL)}`}>{formatCurrency(row.cumulativePnL)}</td>
-                    <td className={`px-3 py-3 text-right ${valueTone(row.cumulativeReturn)}`}>{formatPercent(row.cumulativeReturn)}</td>
+                    <td className="px-3 py-3 text-right text-gray-700 tabular-nums">{formatCurrency(row.beginningValue)}</td>
+                    <td className={`px-3 py-3 text-right font-semibold tabular-nums ${valueTone(row.dailyPnL)}`}>{formatCurrency(row.dailyPnL)}</td>
+                    <td className={`px-3 py-3 text-right tabular-nums ${valueTone(row.dailyReturn)}`}>{formatPercent(row.dailyReturn)}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatCurrency(row.endingValue)}</td>
+                    <td className={`px-3 py-3 text-right font-semibold tabular-nums ${valueTone(row.cumulativePnL)}`}>{formatCurrency(row.cumulativePnL)}</td>
+                    <td className={`px-3 py-3 text-right tabular-nums ${valueTone(row.cumulativeReturn)}`}>{formatPercent(row.cumulativeReturn)}</td>
                   </tr>
                 ))}
-                {rows.length === 0 && (
+                {monthRows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-sm text-gray-400">No daily performance data for this date range.</td>
+                    <td colSpan={7} className="px-3 py-8 text-center text-sm text-gray-400">No daily performance data for this month.</td>
                   </tr>
                 )}
               </tbody>
