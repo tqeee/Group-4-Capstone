@@ -39,6 +39,7 @@ describe('computeFundLedger', () => {
         date: day('2024-01-01'),
         openingBalance: 0,
         pnl: 0,
+        managementFee: 0,
         netFlows: 10000,
         closingBalance: 10000,
         // Opening balance is $0 on the very first day (before that day's
@@ -52,6 +53,7 @@ describe('computeFundLedger', () => {
         date: day('2024-01-02'),
         openingBalance: 10000,
         pnl: 500,
+        managementFee: 0,
         netFlows: 0,
         closingBalance: 10500,
         dailyReturnPct: 0.05,
@@ -67,6 +69,7 @@ describe('computeFundLedger', () => {
         openingSharePct: 0,
         openingValue: 0,
         pnl: 0,
+        managementFee: 0,
         closingValue: 10000,
         closingSharePct: 1,
       },
@@ -77,6 +80,7 @@ describe('computeFundLedger', () => {
         openingSharePct: 1,
         openingValue: 10000,
         pnl: 500,
+        managementFee: 0,
         closingValue: 10500,
         closingSharePct: 1,
       },
@@ -178,6 +182,7 @@ describe('computeFundLedger', () => {
       date: day('2024-01-02'),
       openingBalance: 100000,
       pnl: 1000,
+      managementFee: 0,
       netFlows: 0,
       closingBalance: 101000,
       dailyReturnPct: 0.01,
@@ -221,40 +226,83 @@ describe('computeFundLedger', () => {
     const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 100000)]
     const deals = [deal('2024-01-02', 0, 0)] // no trading P&L that day
 
-    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, 3.65)
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, [
+      { effectiveFrom: day('2024-01-01'), annualPct: 3.65 },
+    ])
 
     const day2Nav = navRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
-    expect(day2Nav.pnl).toBe(-10)
+    expect(day2Nav.pnl).toBe(-10) // still net-of-fee, unchanged from before the fee was broken out
+    expect(day2Nav.managementFee).toBe(10) // the same $10, now also visible on its own
     expect(day2Nav.closingBalance).toBe(99990)
 
     const day2Ledger = ledgerRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
     expect(day2Ledger.pnl).toBe(-10) // sole investor bears the full fee
+    expect(day2Ledger.managementFee).toBe(10)
     expect(day2Ledger.closingValue).toBe(99990)
   })
 
-  it('nets the management fee against trading P&L, and splits it pro-rata across investors', () => {
+  it('nets the management fee against trading P&L, and splits both it and the fee pro-rata across investors', () => {
     const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 60000), flow('2024-01-01', 'B', 'DEPOSIT', 40000)]
     const deals = [deal('2024-01-02', 1000, 1)] // $1000 trading gain
 
     // 36.5% annual = 0.1%/day -> $100/day fee on the $100,000 opening balance.
-    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, 36.5)
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, [
+      { effectiveFrom: day('2024-01-01'), annualPct: 36.5 },
+    ])
 
     const day2Nav = navRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
     expect(day2Nav.pnl).toBe(900) // 1000 trading gain - 100 fee
+    expect(day2Nav.managementFee).toBe(100)
 
     const day2Rows = ledgerRows.filter(r => r.date.getTime() === day('2024-01-02').getTime())
     const a = day2Rows.find(r => r.investorId === 'A')!
     const b = day2Rows.find(r => r.investorId === 'B')!
     expect(a.pnl).toBe(540) // 60% of the net 900
+    expect(a.managementFee).toBe(60) // 60% of the 100 fee
     expect(b.pnl).toBe(360) // 40% of the net 900
+    expect(b.managementFee).toBe(40) // 40% of the 100 fee
+  })
+
+  it('applies a management fee rate change going forward only, never restating days before it took effect', () => {
+    // Confirmed with the industry partner: changing the rate must not
+    // recalculate past periods, which matters here because rebuildFundLedger
+    // replays a fund's entire history from scratch on every change.
+    const flows = [flow('2024-01-01', 'A', 'DEPOSIT', 100000)]
+    const deals = [deal('2024-01-02', 0, 0), deal('2024-01-03', 0, 0), deal('2024-01-04', 0, 0)]
+
+    const { navRows } = computeFundLedger('fund-1', deals, flows, [
+      { effectiveFrom: day('2024-01-01'), annualPct: 0 }, // no fee at first
+      { effectiveFrom: day('2024-01-03'), annualPct: 36.5 }, // then 0.1%/day from the 3rd onward
+    ])
+
+    const byDate = (iso: string) => navRows.find(r => r.date.getTime() === day(iso).getTime())!
+    expect(byDate('2024-01-02').managementFee).toBe(0) // before the rate existed
+    expect(byDate('2024-01-03').managementFee).toBe(100) // 0.1% of the $100,000 opening
+    expect(byDate('2024-01-04').managementFee).toBe(99.9) // 0.1% of the new (slightly lower) opening
+  })
+
+  it('reconciles investor management fees to the fund total, to the cent, for an uneven split', () => {
+    const flows = ['A', 'B', 'C'].map(id => flow('2024-01-01', id, 'DEPOSIT', 10000))
+    const deals = [deal('2024-01-02', 0, 0)]
+
+    // 3.65% annual = 0.01%/day -> $3/day fee on the $30,000 opening balance,
+    // split three ways: $1 each, with nothing lost to rounding.
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, [
+      { effectiveFrom: day('2024-01-01'), annualPct: 3.65 },
+    ])
+
+    const day2Nav = navRows.find(r => r.date.getTime() === day('2024-01-02').getTime())!
+    const day2Rows = ledgerRows.filter(r => r.date.getTime() === day('2024-01-02').getTime())
+    expect(day2Nav.managementFee).toBe(3)
+    expect(day2Rows.reduce((s, r) => s + r.managementFee, 0)).toBe(3)
   })
 })
 
 // The whole point of persisting these workings is that they reconcile. If they
 // don't, every 8.2 metric derived from them inherits the error.
 describe('computeFundLedger invariants', () => {
-  const check = (deals: LedgerDeal[], flows: LedgerFlow[]) => {
-    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows)
+  const check = (deals: LedgerDeal[], flows: LedgerFlow[], feeRates: Parameters<typeof computeFundLedger>[3] = []) => {
+    const { navRows, ledgerRows } = computeFundLedger('fund-1', deals, flows, feeRates)
     const rowsOn = (d: Date) => ledgerRows.filter(r => r.date.getTime() === d.getTime())
     const sum = (ns: number[]) => Math.round(ns.reduce((a, b) => a + b, 0) * 1e8) / 1e8
 
@@ -264,8 +312,9 @@ describe('computeFundLedger invariants', () => {
       expect(round2(nav.openingBalance + nav.pnl + nav.netFlows)).toBe(nav.closingBalance)
       // 2. Each day opens exactly where the previous one closed.
       if (i > 0) expect(nav.openingBalance).toBe(navRows[i - 1].closingBalance)
-      // 3. Investors' P&L and values add up to the fund's, to the cent.
+      // 3. Investors' P&L, management fee, and values add up to the fund's, to the cent.
       expect(round2(sum(rows.map(r => r.pnl)))).toBe(nav.pnl)
+      expect(round2(sum(rows.map(r => r.managementFee)))).toBe(nav.managementFee)
       expect(round2(sum(rows.map(r => r.openingValue)))).toBe(nav.openingBalance)
       expect(round2(sum(rows.map(r => r.closingValue)))).toBe(nav.closingBalance)
       // 4. Shareholdings account for the whole fund.
@@ -304,7 +353,10 @@ describe('computeFundLedger invariants', () => {
       }
     }
 
-    const { navRows, ledgerRows } = check(deals, flows)
+    // A non-zero fee rate exercises the fee-reconciliation invariant (check's
+    // point 3) across 400 days of randomised deposits, withdrawals and
+    // negative-balance edge cases, not just the hand-picked cases above.
+    const { navRows, ledgerRows } = check(deals, flows, [{ effectiveFrom: day('2024-01-01'), annualPct: 2 }])
     expect(navRows.length).toBeGreaterThan(300)
     // Nothing evaporates over the full period either.
     expect(round2(ledgerRows.reduce((s, r) => s + r.pnl, 0))).toBe(

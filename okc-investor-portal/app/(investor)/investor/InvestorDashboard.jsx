@@ -5,13 +5,15 @@ import { useSearchParams } from 'next/navigation';
 import StatCard from '@/components/dashboard/StatCard';
 import PortfolioChart from '@/components/dashboard/PortfolioChart';
 import HoldingsTable from '@/components/dashboard/HoldingsTable';
+import PerformanceSection from './PerformanceSection';
+import ActivitySection from './ActivitySection';
 import { fmtDate, fmtMoney, fmtPct, fmtMonth, fmtTime } from '@/lib/format';
 
 const FILTERS = ['1W', '1M', '3M', 'YTD', '1Y', 'All'];
 const DONUT_COLORS = ['#2563eb', '#60a5fa', '#bfdbfe', '#1e40af'];
 const DOT_CLASSES = ['bg-blue-600', 'bg-blue-400', 'bg-blue-200', 'bg-blue-800'];
 
-export default function InvestorDashboard({ name, overview, availableFunds = [] }) {
+export default function InvestorDashboard({ name, overview, availableFunds = [], reports, activity = [] }) {
   const [activeFilter, setActiveFilter] = useState('All');
   const searchParams = useSearchParams();
   const searchQuery = (searchParams.get('search') || '').toLowerCase().trim();
@@ -280,9 +282,19 @@ export default function InvestorDashboard({ name, overview, availableFunds = [] 
           footer={{
             deposits: `${fmtMoney(overview.grossDeposits)} total deposits`,
             since: `In the fund since ${fmtDate(overview.inceptionDate)}`,
+            fees:
+              overview.inceptionManagementFee > 0
+                ? `${fmtMoney(overview.inceptionManagementFee)} in management fees since inception`
+                : null,
           }}
         />
       </div>
+
+      {/* Performance (formerly the standalone /reports page — see CLAUDE.md Done #37) */}
+      <PerformanceSection overview={overview} reports={reports} />
+
+      {/* Activity (formerly the standalone /activity page — see CLAUDE.md Done #37) */}
+      <ActivitySection items={activity} />
     </div>
   );
 }

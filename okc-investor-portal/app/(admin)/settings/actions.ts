@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/lib/auth/guards'
 import { saveSettings, SETTING_DEFAULTS, type PortalSettings } from '@/lib/settings'
+import { setManagementFeeRate } from '@/lib/managementFee'
 import { audit } from '@/lib/audit'
 
 export type SaveSettingsState =
@@ -32,7 +33,17 @@ export async function updateSettings(
     }
   }
 
-  await saveSettings(values, guard.email)
+  // managementFee is a rate change effective TODAY ONLY, not a KV setting —
+  // see the comment on lib/settings.ts. Everything else still goes through
+  // the generic key-value path.
+  const feeRateChanged = values.managementFee !== undefined
+  const kvValues = { ...values }
+  delete kvValues.managementFee
+
+  await saveSettings(kvValues, guard.email)
+  if (feeRateChanged) {
+    await setManagementFeeRate(Number(values.managementFee), guard.email)
+  }
   await audit('SETTINGS_UPDATED', {
     actor: guard.email,
     detail: Object.keys(values).join(', '),

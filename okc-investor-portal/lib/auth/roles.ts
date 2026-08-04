@@ -33,10 +33,8 @@ const ROUTE_ROLES: Record<string, Role> = {
   '/ops-funds': 'operations',
   // (investor)
   '/investor': 'investor',
-  '/activity': 'investor',
   '/documents': 'investor',
   '/funds': 'investor',
-  '/reports': 'investor',
   '/request-transaction': 'investor',
   // (portfolio-manager)
   '/portfolio-manager': 'portfolio-manager',

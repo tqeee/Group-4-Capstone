@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { fmtDate, fmtMoney } from '@/lib/format';
 import {
   RISK_TOLERANCES,
@@ -49,17 +50,27 @@ const statusStyle = {
 const TABS = ['All', 'Pending Transaction', 'Pending Receipt', 'Completed', 'Rejected'];
 
 export default function RequestTransactionClient({ requests, funds, riskByFund, minDeposit, minWithdrawal }) {
+  // Coming from a fund's "Deposit" button (e.g. /request-transaction?fundId=...)
+  // should land straight in the modal with that fund already chosen, not on a
+  // blank page requiring a second click to open it and a third to reselect
+  // the fund. Read once on mount — this page is a fresh navigation each time,
+  // not a client-side param change to react to.
+  const searchParams = useSearchParams();
+  const requestedFundId = searchParams.get('fundId');
+  const requestedFundValid = Boolean(requestedFundId && funds.some(f => f.id === requestedFundId));
+  const initialFundId = requestedFundValid ? requestedFundId : (funds[0]?.id ?? '');
+
   const [activeTab, setActiveTab] = useState('All');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(requestedFundValid);
   const [requestType, setRequestType] = useState('deposit');
   const [state, formAction, isPending] = useActionState(submitFlowRequest, undefined);
 
   // Controlled so changing fund can surface that fund's standing tolerance
   // (3.4) — tolerance is per fund, so it has to follow the selection.
   const prefs = riskByFund ?? {};
-  const [selectedFundId, setSelectedFundId] = useState(funds[0]?.id ?? '');
+  const [selectedFundId, setSelectedFundId] = useState(initialFundId);
   const [riskTolerance, setRiskTolerance] = useState(
-    prefs[funds[0]?.id] ?? DEFAULT_RISK_TOLERANCE
+    prefs[initialFundId] ?? DEFAULT_RISK_TOLERANCE
   );
 
   const handleFundChange = fundId => {
