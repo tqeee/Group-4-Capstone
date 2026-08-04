@@ -1,0 +1,4 @@
+[config]
+; Force Azure App Service (Oryx) to run `npm ci` + `npm run build` on the
+; Linux host during zip deploy, instead of expecting a prebuilt app.
+SCM_DO_BUILD_DURING_DEPLOYMENT=true

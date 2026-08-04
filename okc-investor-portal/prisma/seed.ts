@@ -1,6 +1,6 @@
 // Demo seed: run with `npx tsx prisma/seed.ts`
 //
-// Creates the XAU fund, portal profiles + Supabase auth users for two
+// Creates the ALPHA fund, portal profiles + Supabase auth users for two
 // investors and the ops/admin staff, broker deals (dataset 5.4 shape)
 // reproducing the demo P&L series, fund flows (dataset 5.2) with staggered
 // deposits so the §8.1 shareholding split is visible, then rebuilds the ledger.
@@ -74,16 +74,21 @@ async function ensureAuthUser(email: string, role: string, name: string): Promis
 
 async function main() {
   console.log('Seeding fund…')
+  // ALPHA (formerly XAU). Renamed so it stops colliding with GOLD, which holds
+  // the firm's real broker workbook — both trade XAUUSD, and two funds named
+  // after gold made the ops/admin fund lists impossible to tell apart. The
+  // deals below are synthetic, generated here purely to give the demo
+  // investors a shareholding-split story; the real dataset lives in GOLD.
   const fund = await prisma.fund.upsert({
-    where: { code: 'XAU' },
+    where: { code: 'ALPHA' },
     update: {},
     create: {
-      code: 'XAU',
-      name: 'OKC XAUUSD Fund',
-      description: 'Gold (XAU/USD) active trading strategy run by an expert advisor.',
+      code: 'ALPHA',
+      name: 'OKC Alpha Fund',
+      description: 'Systematic momentum strategy executed by an expert advisor.',
       currency: 'SGD',
       riskLevel: 'High',
-      strategy: 'Expert Advisor · Auto trading',
+      strategy: 'Expert Advisor · Systematic momentum',
       inceptionDate: new Date('2026-03-17T00:00:00Z'),
     },
   })

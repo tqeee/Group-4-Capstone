@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { fmtDate, fmtMoney } from '@/lib/format';
 import { createFund } from './actions';
 import { FUND_CURRENCIES, FUND_RISK_LEVELS } from './constants';
+import FundDetailModal from './FundDetailModal';
 
 const riskStyle = {
   Low: 'bg-green-50 text-green-600',
@@ -11,13 +12,15 @@ const riskStyle = {
   High: 'bg-red-50 text-red-500',
 };
 
-export default function FundsClient({ funds }) {
+export default function FundsClient({ funds, seriesByFund }) {
   const [showModal, setShowModal] = useState(false);
+  const [openFundId, setOpenFundId] = useState(null);
   const [toast, setToast] = useState(null);
   const [state, formAction, isPending] = useActionState(createFund, undefined);
 
-  // Close the modal and surface a toast when creation succeeds. Done during
-  // render (not in an effect) per https://react.dev/learn/you-might-not-need-an-effect.
+  const openFund = funds.find(f => f.id === openFundId) ?? null;
+
+  // Close the modal and surface a toast when creation succeeds.
   const [handledState, setHandledState] = useState(state);
   if (state !== handledState) {
     setHandledState(state);
@@ -41,9 +44,8 @@ export default function FundsClient({ funds }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-gray-500">Operations</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950">Funds</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <h1 className="text-3xl font-bold text-gray-900">Funds</h1>
+          <p className="text-gray-400 text-sm mt-1">
             Manage the fund products investors can deposit into.
           </p>
         </div>
@@ -71,7 +73,7 @@ export default function FundsClient({ funds }) {
             <p
               className={`mt-2 text-2xl font-bold ${
                 card.signed === undefined
-                  ? 'text-gray-950'
+                  ? 'text-gray-900'
                   : card.signed >= 0
                     ? 'text-green-600'
                     : 'text-red-500'
@@ -86,13 +88,17 @@ export default function FundsClient({ funds }) {
       {/* Fund list */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Fund Directory</p>
-        <h2 className="mt-2 text-lg font-bold text-gray-950">Products offered to investors</h2>
+        <h2 className="mt-2 text-lg font-bold text-gray-900">Products offered to investors</h2>
+        <p className="mt-1 text-sm text-gray-400">Select a fund to see its performance history.</p>
 
         <div className="mt-5 grid gap-3">
           {funds.map(fund => (
-            <div
+            <button
               key={fund.id}
-              className="flex flex-col gap-4 rounded-lg border border-gray-100 p-4 lg:flex-row lg:items-center lg:justify-between"
+              type="button"
+              onClick={() => setOpenFundId(fund.id)}
+              aria-label={`View performance for ${fund.name}`}
+              className="flex w-full flex-col gap-4 rounded-lg border border-gray-100 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-blue-500 lg:flex-row lg:items-center lg:justify-between"
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-700 text-xs font-bold text-white">
@@ -100,7 +106,7 @@ export default function FundsClient({ funds }) {
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-gray-950">{fund.name}</p>
+                    <p className="font-semibold text-gray-900">{fund.name}</p>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${riskStyle[fund.riskLevel] ?? 'bg-gray-100 text-gray-600'}`}>
                       {fund.riskLevel} risk
                     </span>
@@ -114,7 +120,7 @@ export default function FundsClient({ funds }) {
               <div className="flex items-center gap-8">
                 <div className="text-right">
                   <p className="text-xs text-gray-400">AUM ({fund.currency})</p>
-                  <p className="text-sm font-bold text-gray-950">{fmtMoney(fund.aum)}</p>
+                  <p className="text-sm font-bold text-gray-900">{fmtMoney(fund.aum)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Total P&L</p>
@@ -128,8 +134,11 @@ export default function FundsClient({ funds }) {
                     {fund.returnPct.toFixed(2)}%
                   </p>
                 </div>
+                <svg className="hidden h-4 w-4 flex-shrink-0 text-gray-300 lg:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-            </div>
+            </button>
           ))}
           {funds.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">
@@ -139,10 +148,19 @@ export default function FundsClient({ funds }) {
         </div>
       </section>
 
-      {/* Add-fund modal */}
+      {/* Fund performance detail */}
+      {openFund && (
+        <FundDetailModal
+          fund={openFund}
+          series={seriesByFund?.[openFund.id] ?? []}
+          onClose={() => setOpenFundId(null)}
+        />
+      )}
+
+      {/* Add-fund modal with blurred background */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl sm:p-8">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn transition-all duration-300">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl transform transition-all sm:p-8">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Add new fund</h2>

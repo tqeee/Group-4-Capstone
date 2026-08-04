@@ -1,6 +1,6 @@
 'use client';
 import { useActionState, useEffect, useState } from 'react';
-import { inviteUser, setUserStatus } from './actions';
+import { inviteUser, setUserStatus, resetUserMfa } from './actions';
 
 const statusStyle = {
   Active: 'bg-green-50 text-green-600',
@@ -12,12 +12,14 @@ const roleStyle = {
   investor: 'bg-gray-100 text-gray-600',
   operations: 'bg-green-50 text-green-600',
   admin: 'bg-blue-50 text-blue-600',
+  'portfolio-manager': 'bg-purple-50 text-purple-600',
 };
 
 const roleLabel = {
   investor: 'Investor',
   operations: 'Operations',
   admin: 'Admin',
+  'portfolio-manager': 'Portfolio Manager',
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -35,6 +37,7 @@ export default function UsersClient({ users, loadError }) {
   const [toast, setToast] = useState(null);
   const [inviteState, inviteAction, invitePending] = useActionState(inviteUser, undefined);
   const [statusState, statusAction, statusPending] = useActionState(setUserStatus, undefined);
+  const [mfaState, mfaAction, mfaPending] = useActionState(resetUserMfa, undefined);
 
   // Close the modal and surface a toast when an invite succeeds. Done during
   // render (not in an effect) per https://react.dev/learn/you-might-not-need-an-effect.
@@ -56,6 +59,15 @@ export default function UsersClient({ users, loadError }) {
     }
   }
 
+  // ...and for 2FA resets.
+  const [handledMfaState, setHandledMfaState] = useState(mfaState);
+  if (mfaState !== handledMfaState) {
+    setHandledMfaState(mfaState);
+    if (mfaState) {
+      setToast(mfaState.message);
+    }
+  }
+
   // Auto-dismiss the toast.
   useEffect(() => {
     if (!toast) return;
@@ -70,8 +82,8 @@ export default function UsersClient({ users, loadError }) {
   );
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Header — Wraps gracefully on mobile views */}
+    <div>
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Users</h1>
@@ -96,7 +108,7 @@ export default function UsersClient({ users, loadError }) {
         </div>
       )}
 
-      {/* Stats row — Dynamic switching layouts based on screen size */}
+      {/* Stats row with dynamic switching layouts based on screen size */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'TOTAL USERS', value: users.length },
@@ -164,29 +176,58 @@ export default function UsersClient({ users, loadError }) {
                   <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">{formatDate(user.createdAt)}</td>
                   <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">{formatDate(user.lastSignInAt)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <form
-                      action={statusAction}
-                      onSubmit={e => {
-                        const verb = user.status === 'Disabled' ? 're-enable' : 'disable';
-                        if (!window.confirm(`Are you sure you want to ${verb} ${user.email}?`)) {
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      <input type="hidden" name="userId" value={user.id} />
-                      <input type="hidden" name="disable" value={user.status === 'Disabled' ? 'false' : 'true'} />
-                      <button
-                        type="submit"
-                        disabled={statusPending}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
-                          user.status === 'Disabled'
-                            ? 'border-green-200 text-green-600 hover:bg-green-50'
-                            : 'border-red-200 text-red-500 hover:bg-red-50'
-                        }`}
+                    <div className="flex items-center justify-end gap-2">
+                      {/* Recovery path for a user who has lost their authenticator:
+                          without it they can neither sign in nor reset their password. */}
+                      {user.hasMfa && (
+                        <form
+                          action={mfaAction}
+                          onSubmit={e => {
+                            if (!window.confirm(
+                              `Clear two-factor authentication for ${user.email}?\n\n` +
+                              'They will be able to sign in with their password alone until they enrol a new authenticator. ' +
+                              'Only do this once you have confirmed their identity.'
+                            )) {
+                              e.preventDefault();
+                            }
+                          }}
+                        >
+                          <input type="hidden" name="userId" value={user.id} />
+                          <button
+                            type="submit"
+                            disabled={mfaPending}
+                            title="Remove this user's authenticator so they can recover their account"
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition disabled:opacity-50"
+                          >
+                            Reset 2FA
+                          </button>
+                        </form>
+                      )}
+
+                      <form
+                        action={statusAction}
+                        onSubmit={e => {
+                          const verb = user.status === 'Disabled' ? 're-enable' : 'disable';
+                          if (!window.confirm(`Are you sure you want to ${verb} ${user.email}?`)) {
+                            e.preventDefault();
+                          }
+                        }}
                       >
-                        {user.status === 'Disabled' ? 'Enable' : 'Disable'}
-                      </button>
-                    </form>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <input type="hidden" name="disable" value={user.status === 'Disabled' ? 'false' : 'true'} />
+                        <button
+                          type="submit"
+                          disabled={statusPending}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
+                            user.status === 'Disabled'
+                              ? 'border-green-200 text-green-600 hover:bg-green-50'
+                              : 'border-red-200 text-red-500 hover:bg-red-50'
+                          }`}
+                        >
+                          {user.status === 'Disabled' ? 'Enable' : 'Disable'}
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -201,7 +242,7 @@ export default function UsersClient({ users, loadError }) {
 
       {/* Add-user modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50 animate-fadeIn">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn transition-all duration-300">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 w-full max-w-md shadow-xl transform transition-all">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-gray-900">Add new user</h2>
@@ -244,6 +285,7 @@ export default function UsersClient({ users, loadError }) {
                   <option value="investor">Investor</option>
                   <option value="operations">Operations</option>
                   <option value="admin">Admin</option>
+                  <option value="portfolio-manager">Portfolio Manager</option>
                 </select>
               </div>
               <p className="text-xs text-gray-400 leading-normal">
@@ -288,10 +330,10 @@ export default function UsersClient({ users, loadError }) {
         </div>
       )}
 
-      {/* Toast alert handling code */}
+      {/* Toast alert handling */}
       {toast && (
-        <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-gray-900 text-white text-sm px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0">
-          <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed bottom-6 right-6 left-6 sm:left-auto bg-white/70 backdrop-blur-sm border border-gray-200 text-gray-900 text-sm px-5 py-3.5 rounded-2xl shadow-lg flex items-center gap-3 z-50 max-w-sm sm:max-w-md mx-auto sm:mx-0 animate-slideUp">
+          <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="truncate">{toast}</span>

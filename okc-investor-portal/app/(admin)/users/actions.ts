@@ -10,7 +10,12 @@ import { getSiteOrigin } from '@/lib/site-url'
 import { prisma } from '@/lib/db'
 import { audit } from '@/lib/audit'
 
-const DB_ROLE = { investor: 'INVESTOR', operations: 'OPERATIONS', admin: 'ADMIN' } as const
+const DB_ROLE = {
+  investor: 'INVESTOR',
+  operations: 'OPERATIONS',
+  admin: 'ADMIN',
+  'portfolio-manager': 'PORTFOLIO_MANAGER',
+} as const
 
 export type InviteUserState =
   | { status: 'success'; message: string }
@@ -188,6 +193,85 @@ export async function setUserStatus(
   }
 }
 
+export type ResetUserMfaState =
+  | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+  | undefined
+
+// Clear a user's enrolled authenticator(s).
+//
+// This is the account-recovery escape hatch for a user who has lost their
+// authenticator device. Supabase refuses to change the password of an
+// MFA-enabled account from an AAL1 session, and a password-recovery email only
+// ever produces AAL1 — so without their device the user cannot self-serve at
+// all. Supabase ships no backup/recovery codes, so an administrator clearing
+// the factor is the only way back in.
+//
+// Deliberately does NOT touch the password: this restores the user's ability to
+// complete a normal reset, it doesn't hand anyone an account. After this the
+// user signs in with their password alone and re-enrols at /mfa/setup.
+export async function resetUserMfa(
+  _prevState: ResetUserMfaState,
+  formData: FormData
+): Promise<ResetUserMfaState> {
+  const auth = await requireRole('admin')
+  if (!auth.ok) {
+    return { status: 'error', message: auth.message }
+  }
+
+  const userId = formData.get('userId')
+  if (typeof userId !== 'string' || !userId) {
+    return { status: 'error', message: 'Missing user id.' }
+  }
+
+  let admin
+  try {
+    admin = createAdminClient()
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Failed to create admin client.',
+    }
+  }
+
+  const { data: target, error: lookupError } = await admin.auth.admin.getUserById(userId)
+  if (lookupError || !target.user) {
+    return { status: 'error', message: 'User not found.' }
+  }
+
+  // admin.mfa is marked experimental in supabase-js but is verified working
+  // against this project (list + delete round-tripped on a throwaway user).
+  const { data: listed, error: listError } = await admin.auth.admin.mfa.listFactors({ userId })
+  if (listError) {
+    return { status: 'error', message: `Could not read the user's factors: ${listError.message}` }
+  }
+
+  if (listed.factors.length === 0) {
+    return {
+      status: 'error',
+      message: `${target.user.email ?? 'This user'} has no authenticator enrolled.`,
+    }
+  }
+
+  for (const factor of listed.factors) {
+    const { error } = await admin.auth.admin.mfa.deleteFactor({ userId, id: factor.id })
+    if (error) {
+      return { status: 'error', message: `Could not remove the authenticator: ${error.message}` }
+    }
+  }
+
+  await audit('USER_MFA_RESET', {
+    actor: auth.email,
+    detail: `${target.user.email ?? userId} (${listed.factors.length} factor(s) removed)`,
+  })
+
+  revalidatePath('/users')
+  return {
+    status: 'success',
+    message: `Two-factor authentication cleared for ${target.user.email ?? 'user'}. They can sign in with their password and re-enrol.`,
+  }
+}
+
 export type PortalUser = {
   id: string
   email: string
@@ -196,6 +280,7 @@ export type PortalUser = {
   status: 'Active' | 'Invited' | 'Disabled'
   createdAt: string
   lastSignInAt: string | null
+  hasMfa: boolean
 }
 
 function userStatus(user: {
@@ -234,6 +319,21 @@ export async function listUsers(): Promise<
   const profiles = await prisma.investor.findMany({ select: { email: true, name: true } })
   const nameByEmail = new Map(profiles.map((p) => [p.email, p.name]))
 
+  // Which accounts have an authenticator, so the row can offer "Reset 2FA".
+  // listUsers() does NOT return `factors`, and calling admin.mfa.listFactors
+  // per user would be one request each — so read the GoTrue table directly in
+  // a single query. Read-only, and tolerated failing: MFA state is a nice-to-
+  // have on this page, not worth 500ing the whole user list over.
+  let mfaUserIds = new Set<string>()
+  try {
+    const rows = await prisma.$queryRaw<{ user_id: string }[]>`
+      SELECT DISTINCT user_id::text AS user_id FROM auth.mfa_factors WHERE status = 'verified'
+    `
+    mfaUserIds = new Set(rows.map((r) => r.user_id))
+  } catch {
+    // Leave every row without the reset affordance rather than break the page.
+  }
+
   return {
     users: data.users.map((user) => ({
       id: user.id,
@@ -246,6 +346,7 @@ export async function listUsers(): Promise<
       status: userStatus(user),
       createdAt: user.created_at,
       lastSignInAt: user.last_sign_in_at ?? null,
+      hasMfa: mfaUserIds.has(user.id),
     })),
   }
 }

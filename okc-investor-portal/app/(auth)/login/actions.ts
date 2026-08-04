@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeRole, ROLE_HOME } from '@/lib/auth/roles'
+import { IDLE_COOKIE, IDLE_TIMEOUT_MS } from '@/lib/auth/idle'
 import { prisma } from '@/lib/db'
 import { audit } from '@/lib/audit'
 
@@ -107,12 +109,33 @@ export async function login(
   redirect(ROLE_HOME[normalizeRole(appMetadata?.role)])
 }
 
-export async function signout() {
+// Shared by both sign-out paths below. Not exported — in a 'use server' file
+// every export becomes a callable server action, and this takes a caller-
+// supplied detail string that has no business being reachable from the client.
+async function endSession(detail?: string) {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
   await supabase.auth.signOut()
-  await audit('LOGOUT', { actor: data?.claims?.email ?? null })
+  await audit('LOGOUT', { actor: data?.claims?.email ?? null, detail })
+
+  // Otherwise a stale timestamp from the previous session decides the idle
+  // clock for the next person to sign in on this browser.
+  ;(await cookies()).delete(IDLE_COOKIE)
 
   revalidatePath('/', 'layout')
+}
+
+export async function signout() {
+  await endSession()
   redirect('/login')
+}
+
+// Called by the client idle countdown when it runs out. Separate from signout()
+// rather than a parameter on it, because signout() is used as a form action and
+// would receive FormData as its first argument.
+export async function signoutIdle() {
+  await endSession(
+    `Signed out automatically after ${IDLE_TIMEOUT_MS / 60000} minutes of inactivity`
+  )
+  redirect('/login?timeout=1')
 }

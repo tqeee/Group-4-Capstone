@@ -22,7 +22,7 @@ export default function SettingsClient({ settings }) {
   }, [toast]);
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-400 text-sm mt-1">
@@ -90,7 +90,11 @@ export default function SettingsClient({ settings }) {
             <p className="text-xs text-yellow-700 leading-normal">
               <span className="font-semibold">Note:</span> Requests at or above the large
               transaction threshold are flagged to Operations during review. Session security
-              (timeouts, lockouts, MFA) is managed by Supabase Auth.
+              (timeouts, lockouts, MFA) is managed by Supabase Auth. The management fee is an
+              annual rate accrued daily against each fund&apos;s NAV and deducted from investor
+              P&amp;L. Since ledgers are fully recomputed on every rebuild (deposit/withdrawal
+              approval or data import), changing this rate reapplies it across each fund&apos;s
+              entire history the next time its ledger is rebuilt.
             </p>
           </div>
         </div>

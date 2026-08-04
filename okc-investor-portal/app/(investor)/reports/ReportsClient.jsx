@@ -52,10 +52,11 @@ export default function ReportsClient({ overview, reports }) {
 
       {activeTab === 'Overview' && (
         <div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             {[
               { label: 'TOTAL P&L', value: fmtMoney(overview.inceptionPnl, { sign: true }), sub: `Since ${fmtDate(overview.inceptionDate)}`, red: overview.inceptionPnl < 0 },
               { label: 'FUND RETURN (COMPOUNDED)', value: fmtPct(fundReturnPct), sub: 'Daily returns compounded', red: fundReturnPct < 0 },
+              { label: 'YTD RETURN', value: fmtPct(overview.ytdPct), sub: fmtMoney(overview.ytdPnl, { sign: true }), red: overview.ytdPnl < 0 },
               { label: 'WIN RATE', value: `${winRate}%`, sub: `${totalWins}W / ${totalLosses}L`, red: false },
               { label: 'TRADING DAYS', value: `${totalTradingDays} days`, sub: periodLabel, red: false },
             ].map((item, i) => (

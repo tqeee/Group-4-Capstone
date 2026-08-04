@@ -33,9 +33,8 @@ export default function DataImportClient({ batches, funds }) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm text-gray-500">Operations</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950">Data Import</h1>
-        <p className="mt-2 text-sm text-gray-500">
+        <h1 className="text-3xl font-bold text-gray-900">Data Import</h1>
+        <p className="text-gray-400 text-sm mt-1">
           Upload the broker&apos;s raw deal export (CSV) to feed the daily P&L pipeline. Imports
           are idempotent — re-uploaded deals are skipped by ticket number.
         </p>
@@ -44,7 +43,7 @@ export default function DataImportClient({ batches, funds }) {
       <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
         <div className="space-y-4">
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-950">Import broker deals</h2>
+            <h2 className="text-sm font-bold text-gray-900">Import broker deals</h2>
 
             <form ref={formRef} action={formAction} className="mt-5 space-y-5">
               <div className="max-w-xl">
@@ -90,7 +89,7 @@ export default function DataImportClient({ batches, funds }) {
                     d="M12 16V8m0 0l-3 3m3-3l3 3M6 16.5a4.5 4.5 0 01.8-8.93A5.5 5.5 0 0117.5 9.5H18a3.5 3.5 0 010 7h-2"
                   />
                 </svg>
-                <p className="mt-3 font-bold text-gray-950">
+                <p className="mt-3 font-bold text-gray-900">
                   {fileName ?? 'Drag and drop your CSV here'}
                 </p>
                 <p className="mt-1 text-sm text-gray-500">or</p>
@@ -141,7 +140,7 @@ export default function DataImportClient({ batches, funds }) {
 
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <h2 className="text-sm font-bold text-gray-950">Recent Imports</h2>
+              <h2 className="text-sm font-bold text-gray-900">Recent Imports</h2>
               <div className="relative w-full md:w-80">
                 <svg
                   className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -181,12 +180,12 @@ export default function DataImportClient({ batches, funds }) {
                               <path d="M4 3a2 2 0 012-2h5l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V3zm7 1v3h3l-3-3z" />
                             </svg>
                           </span>
-                          <span className="font-medium text-gray-950">{batch.fileName}</span>
+                          <span className="font-medium text-gray-900">{batch.fileName}</span>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-gray-600">{batch.uploadedBy}</td>
                       <td className="px-4 py-4 text-gray-600">{fmtDate(batch.uploadedAt)}</td>
-                      <td className="px-4 py-4 font-medium text-gray-950">{batch.rowCount}</td>
+                      <td className="px-4 py-4 font-medium text-gray-900">{batch.rowCount}</td>
                       <td className="px-4 py-4 text-gray-600">{batch.skipped}</td>
                       <td className="px-4 py-4">
                         <span
@@ -220,7 +219,7 @@ export default function DataImportClient({ batches, funds }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="mt-5 text-lg font-bold text-gray-950 break-all">{lastValidated.fileName}</p>
+                <p className="mt-5 text-lg font-bold text-gray-900 break-all">{lastValidated.fileName}</p>
                 <p className="mt-2 text-sm text-gray-500">{fmtDate(lastValidated.uploadedAt)}</p>
                 <p className="mt-2 text-sm font-medium text-gray-600">
                   {lastValidated.rowCount} deal(s) · by {lastValidated.uploadedBy}
@@ -232,7 +231,7 @@ export default function DataImportClient({ batches, funds }) {
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-950">Expected format</h2>
+            <h2 className="text-sm font-bold text-gray-900">Expected format</h2>
             <p className="mt-3 text-sm leading-6 text-gray-600">
               The raw broker deal export (dataset 5.4). Required columns:{' '}
               <code className="rounded bg-gray-50 px-1 font-mono text-xs">ticket</code>,{' '}
