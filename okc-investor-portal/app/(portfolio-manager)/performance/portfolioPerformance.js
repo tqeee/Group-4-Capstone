@@ -8,8 +8,8 @@
 // having earned anything, so that formula reports a fund which took a $500k
 // deposit on a $100k base and made zero P&L as up 500%. Compounding the daily
 // returns strips the timing of investor capital out, which is the whole point
-// of the metric — and it is what lib/ledger.ts `compoundReturn` already does
-// for the investor-facing pages, so the two agree.
+// of the metric — and it is what lib/finance.ts `compoundReturn` already does
+// for the investor-facing pages, so the two agree (asserted in the tests).
 
 export function calculateEndingValue(beginningValue, dailyPnL) {
   return beginningValue + dailyPnL;
@@ -59,7 +59,12 @@ export function calculatePortfolioPerformance(transactions) {
     const dailyPnL = transaction.dailyPnL;
     const deposits = transaction.deposits || 0;
     const withdrawals = transaction.withdrawals || 0;
-    const endingValue = calculateEndingValue(beginningValue, dailyPnL);
+    // Ending value must reflect this same day's deposits/withdrawals too —
+    // not just beginning + P&L — otherwise a deposit day shows an
+    // artificially low ending value (the deposit only shows up starting
+    // the *next* day). Matches lib/ledger.ts's closingValue = opening +
+    // pnlShare + flow.
+    const endingValue = calculateEndingValue(beginningValue, dailyPnL) + deposits - withdrawals;
     const dailyReturn = calculateDailyReturn(beginningValue, dailyPnL);
 
     cumulativePnL += dailyPnL;
@@ -78,14 +83,13 @@ export function calculatePortfolioPerformance(transactions) {
     };
   });
 
-  const lastTransaction = transactions[transactions.length - 1];
-  const portfolioValue =
-    calculateEndingValue(lastTransaction.beginningValue, lastTransaction.dailyPnL) +
-    (lastTransaction.deposits || 0) -
-    (lastTransaction.withdrawals || 0);
-  const todayPnL = performanceRows[performanceRows.length - 1].dailyPnL;
+  const lastRow = performanceRows[performanceRows.length - 1];
+  // The last day's ending value already carries every prior day's P&L and
+  // flows, so it is the portfolio's current worth by construction.
+  const portfolioValue = lastRow.endingValue;
+  const todayPnL = lastRow.dailyPnL;
   const totalPnL = cumulativePnL;
-  const fundReturn = performanceRows[performanceRows.length - 1].cumulativeReturn;
+  const fundReturn = lastRow.cumulativeReturn;
   const bestDay = performanceRows.reduce((best, row) => (row.dailyPnL > best.dailyPnL ? row : best), performanceRows[0]);
   const worstDay = performanceRows.reduce((worst, row) => (row.dailyPnL < worst.dailyPnL ? row : worst), performanceRows[0]);
   const chartData = performanceRows.map(row => ({
@@ -94,6 +98,7 @@ export function calculatePortfolioPerformance(transactions) {
     dailyPnL: row.dailyPnL,
     cumulativePnL: row.cumulativePnL,
     dailyReturn: row.dailyReturn,
+    fundReturn: row.cumulativeReturn,
   }));
 
   return {

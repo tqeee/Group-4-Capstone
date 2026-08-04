@@ -1,6 +1,6 @@
 // Demo seed: run with `npx tsx prisma/seed.ts`
 //
-// Creates the XAU fund, portal profiles + Supabase auth users for two
+// Creates the ALPHA fund, portal profiles + Supabase auth users for two
 // investors and the ops/admin staff, broker deals (dataset 5.4 shape)
 // reproducing the demo P&L series, fund flows (dataset 5.2) with staggered
 // deposits so the §8.1 shareholding split is visible, then rebuilds the ledger.
@@ -74,16 +74,23 @@ async function ensureAuthUser(email: string, role: string, name: string): Promis
 
 async function main() {
   console.log('Seeding fund…')
+  // ALPHA (formerly XAU). Renamed so it stops colliding with GOLD, which holds
+  // the firm's real broker workbook: both were named after gold AND both traded
+  // XAUUSD, so neither the fund lists nor an individual deal row told you which
+  // fund you were looking at. ALPHA's deals below are synthetic — generated
+  // here purely to give the demo investors a shareholding-split story — and now
+  // trade EURUSD so the two funds are distinguishable end to end. The firm's
+  // real dataset lives in GOLD.
   const fund = await prisma.fund.upsert({
-    where: { code: 'XAU' },
+    where: { code: 'ALPHA' },
     update: {},
     create: {
-      code: 'XAU',
-      name: 'OKC XAUUSD Fund',
-      description: 'Gold (XAU/USD) active trading strategy run by an expert advisor.',
+      code: 'ALPHA',
+      name: 'OKC Alpha Fund',
+      description: 'Systematic momentum strategy executed by an expert advisor.',
       currency: 'SGD',
       riskLevel: 'High',
-      strategy: 'Expert Advisor · Auto trading',
+      strategy: 'Expert Advisor · Systematic momentum',
       inceptionDate: new Date('2026-03-17T00:00:00Z'),
     },
   })
@@ -171,12 +178,16 @@ async function main() {
         entry: 1,
         positionId: position++,
         volume: 0.5 + i * 0.25,
-        price: 3305 + Math.round(Math.random() * 400) / 10,
+        // EURUSD so ALPHA's instrument differs from GOLD's XAUUSD — with both
+        // funds on the same symbol there was no way to tell from a deal row
+        // which fund it belonged to. Price kept in a realistic EUR/USD band
+        // (~1.0800–1.1200); the P&L series below is unaffected either way.
+        price: 1.08 + Math.round(Math.random() * 400) / 10000,
         commission: 0,
         swap: 0,
         profit,
         fee: 0,
-        symbol: 'XAUUSD',
+        symbol: 'EURUSD',
         comment: 'ea-close',
       })
     }

@@ -1,11 +1,13 @@
 import { prisma } from '@/lib/db'
+import { getSettings } from '@/lib/settings'
 
 // Implements the recordkeeping process from section 8.1 of the challenge
 // statement. For each fund, we replay every day from the first activity:
 //
 //   opening balance (= previous day's closing)
 //   + daily P&L        (sum of profit+commission+swap+fee of that day's deals,
-//                       split among investors pro-rata by opening share %)
+//                       less that day's accrued management fee, split among
+//                       investors pro-rata by opening share %)
 //   + net flows        (completed deposit/withdrawal requests processed that day)
 //   = closing balance  (then each investor's share % is recalculated)
 //
@@ -18,6 +20,10 @@ import { prisma } from '@/lib/db'
 //   2. FundDailyNav.openingBalance == the previous row's closingBalance
 
 const DAY_MS = 24 * 60 * 60 * 1000
+// Admin's "Management fee (%)" setting (lib/settings.ts) is an ANNUAL rate on
+// AUM, accrued daily against each day's opening balance — the standard fund
+// convention (e.g. a 1% annual fee ~= 1/365th deducted each day).
+const DAYS_PER_YEAR = 365
 
 function utcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
@@ -100,7 +106,8 @@ export type InvestorDailyLedgerRow = {
 export function computeFundLedger(
   fundId: string,
   deals: LedgerDeal[],
-  flows: LedgerFlow[]
+  flows: LedgerFlow[],
+  managementFeeAnnualPct = 0
 ): { navRows: FundDailyNavRow[]; ledgerRows: InvestorDailyLedgerRow[] } {
   // Daily P&L from deals, plus a count of closed ("out") trades per day for
   // fund_daily_nav.trade_count (8.2/3.5 analytics column).
@@ -143,8 +150,14 @@ export function computeFundLedger(
     let carriedPnl = 0
 
     for (let t = allDays[0]; t <= allDays[allDays.length - 1]; t += DAY_MS) {
+      const tradingPnl = pnlByDay.get(t) ?? 0
       const dayFlows = flowsByDay.get(t)
       const opening = [...values.values()].reduce((a, b) => a + b, 0)
+      // Management fee accrues on the day's opening balance regardless of
+      // trading activity, then reduces that day's P&L like any other cost.
+      // A fund holding nothing accrues nothing, so the fee never contributes
+      // to the carry-forward below — only trading P&L can end up unattributed.
+      const managementFee = opening * (managementFeeAnnualPct / 100 / DAYS_PER_YEAR)
 
       // Investors active today: had a position at opening or have a flow.
       const active = new Set<string>(values.keys())
@@ -154,7 +167,7 @@ export function computeFundLedger(
       // opening balance — including a negative one, if losses ever exceeded
       // the fund's capital. Only an empty fund leaves P&L unattributable.
       const attributable = opening !== 0
-      const pending = (pnlByDay.get(t) ?? 0) + carriedPnl
+      const pending = tradingPnl - managementFee + carriedPnl
       const dayPnl = attributable ? pending : 0
       carriedPnl = attributable ? 0 : pending
 
@@ -239,7 +252,7 @@ export function computeFundLedger(
 }
 
 export async function rebuildFundLedger(fundId: string): Promise<void> {
-  const [dealsRaw, flowsRaw] = await Promise.all([
+  const [dealsRaw, flowsRaw, settings] = await Promise.all([
     prisma.deal.findMany({
       // type 2 = balance (deposits/withdrawals on the broker account) — money
       // movement, not trading P&L. The portal tracks those as FundFlows.
@@ -254,7 +267,9 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
       },
       select: { investorId: true, type: true, amount: true, processedDate: true },
     }),
+    getSettings(),
   ])
+  const managementFeeAnnualPct = Number(settings.managementFee)
 
   const deals: LedgerDeal[] = dealsRaw.map(d => ({
     time: d.time,
@@ -271,7 +286,7 @@ export async function rebuildFundLedger(fundId: string): Promise<void> {
     processedDate: f.processedDate!,
   }))
 
-  const { navRows, ledgerRows } = computeFundLedger(fundId, deals, flows)
+  const { navRows, ledgerRows } = computeFundLedger(fundId, deals, flows, managementFeeAnnualPct)
 
   await prisma.$transaction([
     prisma.investorDailyLedger.deleteMany({ where: { fundId } }),
@@ -288,14 +303,8 @@ export async function rebuildAllLedgers(): Promise<void> {
   }
 }
 
-// Section 8.2 (ii): fund return = daily % returns compounded over the period,
-// where daily % return = daily PNL / total assets at beginning of day.
-export function compoundReturn(
-  days: { openingBalance: number; pnl: number }[]
-): number {
-  let factor = 1
-  for (const day of days) {
-    if (day.openingBalance > 0) factor *= 1 + day.pnl / day.openingBalance
-  }
-  return factor - 1
-}
+// Section 8.2 (ii)'s compounded fund return now lives in lib/finance.ts, which
+// imports nothing server-only so client components can use the same formula.
+// Re-exported here because this module was its original home and the read
+// models (lib/queries.ts) and tests still import it from this path.
+export { compoundReturn } from '@/lib/finance'
