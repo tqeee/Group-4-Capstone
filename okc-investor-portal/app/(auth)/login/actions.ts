@@ -6,33 +6,14 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeRole, ROLE_HOME } from '@/lib/auth/roles'
 import { IDLE_COOKIE, IDLE_TIMEOUT_MS } from '@/lib/auth/idle'
-import { prisma } from '@/lib/db'
+import {
+  getLockoutState,
+  LOCKOUT_THRESHOLD,
+  LOCKOUT_WINDOW_MINUTES,
+} from '@/lib/auth/lockout'
 import { audit } from '@/lib/audit'
 
 export type LoginState = { error: string } | undefined
-
-// Account security safeguard (§3.1): after this many failed attempts within
-// the window, further attempts for that email are refused — on top of
-// Supabase's own per-IP rate limiting.
-const LOCKOUT_THRESHOLD = 5
-const LOCKOUT_WINDOW_MINUTES = 15
-
-async function isLockedOut(email: string): Promise<boolean> {
-  try {
-    const failures = await prisma.auditLog.count({
-      where: {
-        action: 'LOGIN_FAILED',
-        actorEmail: email,
-        createdAt: { gte: new Date(Date.now() - LOCKOUT_WINDOW_MINUTES * 60 * 1000) },
-      },
-    })
-    return failures >= LOCKOUT_THRESHOLD
-  } catch {
-    // If the audit store is unreachable, fail open: Supabase still rate
-    // limits, and a DB outage must not lock every user out of the portal.
-    return false
-  }
-}
 
 export async function login(
   _prevState: LoginState,
@@ -53,14 +34,18 @@ export async function login(
   // Normalise so lockout counting can't be dodged by re-casing the email.
   const email = emailInput.trim().toLowerCase()
 
-  if (await isLockedOut(email)) {
+  // Read before the sign-in attempt, so a success below knows how many
+  // failures it is about to clear and can say so in the audit trail.
+  const lockout = await getLockoutState(email)
+
+  if (lockout.locked) {
     await audit('LOGIN_LOCKED', {
       actor: email,
-      detail: `Blocked: ${LOCKOUT_THRESHOLD}+ failed attempts within ${LOCKOUT_WINDOW_MINUTES} minutes`,
+      detail: `Blocked: ${lockout.failures} failed attempts (threshold ${LOCKOUT_THRESHOLD}) within ${LOCKOUT_WINDOW_MINUTES} minutes`,
       success: false,
     })
     return {
-      error: `Too many failed attempts. Try again in ${LOCKOUT_WINDOW_MINUTES} minutes or reset your password.`,
+      error: `Too many failed attempts. Try again in ${LOCKOUT_WINDOW_MINUTES} minutes, or ask an administrator to unlock your account.`,
     }
   }
 
@@ -100,9 +85,24 @@ export async function login(
   const hasVerifiedFactor =
     user?.factors?.some((factor) => factor.status === 'verified') ?? false
 
+  // This row is itself the lockout reset: getLockoutState() only counts
+  // failures recorded after the latest LOGIN_SUCCESS, so proving the password
+  // wipes the run of typos that preceded it without deleting the trail.
+  //
+  // Written on password verification even when a TOTP challenge is still
+  // pending — deliberately, because the counter exists to stop password
+  // guessing, and whoever got this far already has the password. The
+  // authenticator is what stands between them and the portal from here.
+  const successDetail = [
+    hasVerifiedFactor ? 'Password verified; TOTP challenge pending' : null,
+    lockout.failures > 0
+      ? `Cleared ${lockout.failures} failed attempt${lockout.failures === 1 ? '' : 's'}`
+      : null,
+  ].filter(Boolean)
+
   await audit('LOGIN_SUCCESS', {
     actor: email,
-    detail: hasVerifiedFactor ? 'Password verified; TOTP challenge pending' : undefined,
+    detail: successDetail.length > 0 ? successDetail.join(' · ') : undefined,
   })
 
   if (hasVerifiedFactor) {

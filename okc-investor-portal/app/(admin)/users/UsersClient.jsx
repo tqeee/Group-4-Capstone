@@ -1,6 +1,6 @@
 'use client';
 import { useActionState, useEffect, useState } from 'react';
-import { inviteUser, setUserStatus, resetUserMfa } from './actions';
+import { inviteUser, setUserStatus, resetUserMfa, unlockUserAccount } from './actions';
 import { fmtDate, fmtMoney } from '@/lib/format';
 import { ROLE_BADGE_STYLE } from '@/lib/auth/roles';
 
@@ -61,6 +61,7 @@ export default function UsersClient({ users, loadError }) {
   const [inviteState, inviteAction, invitePending] = useActionState(inviteUser, undefined);
   const [statusState, statusAction, statusPending] = useActionState(setUserStatus, undefined);
   const [mfaState, mfaAction, mfaPending] = useActionState(resetUserMfa, undefined);
+  const [unlockState, unlockAction, unlockPending] = useActionState(unlockUserAccount, undefined);
  
   // Close the modal and surface a toast when an invite succeeds. Done during
   // render (not in an effect) per https://react.dev/learn/you-might-not-need-an-effect.
@@ -88,6 +89,15 @@ export default function UsersClient({ users, loadError }) {
     setHandledMfaState(mfaState);
     if (mfaState) {
       setToast(mfaState.message);
+    }
+  }
+
+  // ...and for sign-in lockout clears.
+  const [handledUnlockState, setHandledUnlockState] = useState(unlockState);
+  if (unlockState !== handledUnlockState) {
+    setHandledUnlockState(unlockState);
+    if (unlockState) {
+      setToast(unlockState.message);
     }
   }
  
@@ -219,9 +229,26 @@ export default function UsersClient({ users, loadError }) {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusStyle[user.status]}`}>
-                      {user.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusStyle[user.status]}`}>
+                        {user.status}
+                      </span>
+                      {/* Separate from Status because it is a separate thing:
+                          the account is still enabled, our login gate is just
+                          refusing it until the attempts age out or an admin
+                          clears them. */}
+                      {user.lockedOut && (
+                        <span
+                          title={`${user.failedAttempts} failed sign-in attempts on record`}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-600"
+                        >
+                          <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          Locked
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-xs text-gray-700 font-semibold whitespace-nowrap">
                     {isInvestor ? fmtMoney(user.portfolioValue ?? 0) : <span className="text-gray-300 font-normal">—</span>}
@@ -241,6 +268,34 @@ export default function UsersClient({ users, loadError }) {
                         View Profile
                       </button>
  
+                      {/* Only offered while the account is actually locked —
+                          otherwise there is nothing to clear, and the action
+                          would refuse anyway. */}
+                      {user.lockedOut && (
+                        <form
+                          action={unlockAction}
+                          onSubmit={e => {
+                            if (!window.confirm(
+                              `Clear the sign-in lockout for ${user.email}?\n\n` +
+                              `Their ${user.failedAttempts} failed attempts stop counting and they can try signing in again straight away. ` +
+                              'Their password is unchanged, and the failed attempts stay in the audit log.'
+                            )) {
+                              e.preventDefault();
+                            }
+                          }}
+                        >
+                          <input type="hidden" name="userId" value={user.id} />
+                          <button
+                            type="submit"
+                            disabled={unlockPending}
+                            title="Clear the failed sign-in attempts blocking this account"
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition disabled:opacity-50"
+                          >
+                            Unlock
+                          </button>
+                        </form>
+                      )}
+
                       {/* Recovery path for a user who has lost their authenticator:
                           without it they can neither sign in nor reset their password. */}
                       {user.hasMfa && (
