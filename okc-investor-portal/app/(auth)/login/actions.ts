@@ -11,6 +11,7 @@ import {
   LOCKOUT_THRESHOLD,
   LOCKOUT_WINDOW_MINUTES,
 } from '@/lib/auth/lockout'
+import { claimActiveSession } from '@/lib/auth/session-guard'
 import { audit } from '@/lib/audit'
 
 export type LoginState = { error: string } | undefined
@@ -84,6 +85,15 @@ export async function login(
   // blocks everything else until then.
   const hasVerifiedFactor =
     user?.factors?.some((factor) => factor.status === 'verified') ?? false
+
+  // Claim this as the account's one allowed session (§3.1 — no two people
+  // signed in on the same login at once) before any redirect, so whichever
+  // page loads next already sees a consistent marker. Safe to do before the
+  // MFA challenge: challengeAndVerify elevates THIS session's AAL, it doesn't
+  // mint a new one, so the session_id claimed here stays valid through it.
+  if (user) {
+    await claimActiveSession(supabase, user.id, user.app_metadata)
+  }
 
   // This row is itself the lockout reset: getLockoutState() only counts
   // failures recorded after the latest LOGIN_SUCCESS, so proving the password

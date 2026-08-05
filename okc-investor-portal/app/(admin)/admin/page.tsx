@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getAuditLogs, getFlowsForReview, getFundTotals, getInvestorsDirectory } from '@/lib/queries'
-import { fmtDate, fmtMoney, fmtPct } from '@/lib/format'
+import { fmtDate, fmtMoney, fmtPct, fmtTime } from '@/lib/format'
 
 function timeLabel(iso: string): string {
   const d = new Date(iso)
@@ -25,7 +25,14 @@ export default async function AdminOverview() {
   const totalPnl = funds.reduce((s, f) => s + f.totalPnl, 0)
   const pending = flows.filter(f => f.status === 'Pending Transaction' || f.status === 'Pending Receipt')
   const pendingDeposits = pending.filter(f => f.type === 'Deposit').length
-  const asOf = funds[0]?.asOf ?? null
+  // Most recently computed fund, not funds[0] (arbitrary query order) — keeps
+  // this in sync with how the Investor/Portfolio Manager pages pick a date.
+  const mostRecentFund = funds.reduce<typeof funds[number] | null>(
+    (best, f) => (f.asOf && (!best || f.asOf > best.asOf) ? f : best),
+    null
+  )
+  const asOf = mostRecentFund?.asOf ?? null
+  const asOfComputedAt = mostRecentFund?.asOfComputedAt ?? null
 
   const stats = [
     {
@@ -57,7 +64,7 @@ export default async function AdminOverview() {
           <h1 className="text-3xl font-bold text-gray-900">Admin Overview</h1>
           <span className="text-xs text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5 self-start sm:self-auto">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
-            NAV as of {asOf ? fmtDate(asOf) : '—'}
+            NAV as of {asOf ? fmtDate(asOf) : '—'} · {fmtTime(asOfComputedAt)}
           </span>
         </div>
       </div>

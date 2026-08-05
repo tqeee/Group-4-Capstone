@@ -17,8 +17,14 @@ export default async function OperationsDashboardPage() {
   const pending = flows.filter(f => f.status === 'Pending Transaction' || f.status === 'Pending Receipt')
   const investors = directory.filter(i => i.role === 'INVESTOR')
   const aum = funds.reduce((s, f) => s + f.aum, 0)
-  const asOf = funds[0]?.asOf ?? null
-  const asOfComputedAt = funds[0]?.asOfComputedAt ?? null
+  // Most recently computed fund, not funds[0] (arbitrary query order) — keeps
+  // this in sync with how the Investor/Portfolio Manager pages pick a date.
+  const mostRecentFund = funds.reduce<typeof funds[number] | null>(
+    (best, f) => (f.asOf && (!best || f.asOf > best.asOf) ? f : best),
+    null
+  )
+  const asOf = mostRecentFund?.asOf ?? null
+  const asOfComputedAt = mostRecentFund?.asOfComputedAt ?? null
   const recentFlows = flows.slice(0, 6)
 
   const metrics = [

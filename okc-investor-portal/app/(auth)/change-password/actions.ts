@@ -14,6 +14,7 @@ import {
 } from '@/lib/auth/recovery'
 import { lookupResetLink } from '@/lib/auth/reset-link'
 import { firstPasswordProblem } from '@/lib/auth/password'
+import { claimActiveSession } from '@/lib/auth/session-guard'
 import { audit } from '@/lib/audit'
 
 // `needsMfa` tells the client to drop back to the TOTP challenge: the session
@@ -137,13 +138,17 @@ export async function changePassword(
   // so only the service-role client can change it; spread the existing
   // metadata because the update is a shallow merge and we must keep the role
   // claim intact.
+  //
+  // Both this and claimActiveSession below write the whole app_metadata object,
+  // so they must not each spread the same pre-write snapshot — whichever ran
+  // second would silently erase the other's key. `appMetadata` carries the
+  // result of this write forward so the claim below builds on it.
+  let appMetadata = user.app_metadata
   if (user.app_metadata?.must_change_password === true) {
     const admin = createAdminClient()
+    appMetadata = { ...user.app_metadata, must_change_password: false }
     const { error: metadataError } = await admin.auth.admin.updateUserById(user.id, {
-      app_metadata: {
-        ...user.app_metadata,
-        must_change_password: false,
-      },
+      app_metadata: appMetadata,
     })
 
     if (metadataError) {
@@ -151,8 +156,18 @@ export async function changePassword(
     }
 
     // Mint a fresh access token so the proxy sees the cleared flag immediately.
+    // Refreshing keeps the same session_id, so the claim below still matches.
     await supabase.auth.refreshSession()
   }
+
+  // Claim this session as the account's one allowed session (§3.1). Needed
+  // even though signOut above already killed every other real session:
+  // without this, a recovery-flow session (which never went through login()'s
+  // claimActiveSession call) would carry a stale or missing marker and the
+  // proxy's concurrent-session check would immediately sign THIS session back
+  // out on the very next page load — locking the user out right after they
+  // just reset their password.
+  await claimActiveSession(supabase, user.id, appMetadata)
 
   await audit('PASSWORD_CHANGED', { actor: user.email ?? null })
 

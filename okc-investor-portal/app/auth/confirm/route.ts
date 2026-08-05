@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth/recovery'
 import { lookupResetLink } from '@/lib/auth/reset-link'
 import { IDLE_COOKIE } from '@/lib/auth/idle'
+import { claimActiveSession } from '@/lib/auth/session-guard'
 import { audit } from '@/lib/audit'
 
 // Supabase auth email links (recovery, invite, email change) carry a SINGLE-USE
@@ -209,6 +210,11 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
     if (!error) {
       await audit('AUTH_LINK_VERIFIED', { actor: data.user?.email ?? null, detail: type })
+      // §3.1: claim this freshly-minted session as the account's one allowed
+      // session before it's redirected anywhere.
+      if (data.user) {
+        await claimActiveSession(supabase, data.user.id, data.user.app_metadata)
+      }
       return ok(type === 'recovery')
     }
     await audit('AUTH_LINK_REJECTED', { detail: `${type}: ${error.message}`, success: false })
@@ -219,6 +225,11 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       await audit('AUTH_LINK_VERIFIED', { actor: data.user?.email ?? null, detail: 'code' })
+      // §3.1: claim this freshly-minted session as the account's one allowed
+      // session before it's redirected anywhere.
+      if (data.user) {
+        await claimActiveSession(supabase, data.user.id, data.user.app_metadata)
+      }
       // PKCE links don't carry the type, so infer it from where we're sending them.
       return ok(next.startsWith('/change-password'))
     }
