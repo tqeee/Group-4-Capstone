@@ -152,7 +152,7 @@ jobs:
           exit $fail
 
       - name: Upload deploy.zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           # GitHub zips artifacts on download, so this arrives as a zip
           # containing deploy.zip — unzip once, then upload the inner file.
@@ -191,7 +191,7 @@ jobs:
       contents: write
     steps:
       - name: Download bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: deploy-zip-${{ github.sha }}
 
