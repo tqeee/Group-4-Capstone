@@ -209,6 +209,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Overrides the workflow-level working-directory. This job does not check
+    # the repo out, so okc-investor-portal/ does not exist here and bash fails
+    # to start at all ("No such file or directory") before running a line.
+    defaults:
+      run:
+        working-directory: .
     steps:
       - name: Download bundle
         uses: actions/download-artifact@v7
