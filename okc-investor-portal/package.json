@@ -13,6 +13,8 @@
     "test": "vitest run",
     "ledger:check": "tsx scripts/rebuild-ledgers.ts --check",
     "ledger:rebuild": "tsx scripts/rebuild-ledgers.ts",
+    "bundle:build": "node scripts/build-eb-bundle.mjs",
+    "bundle:verify": "node scripts/verify-eb-bundle.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
