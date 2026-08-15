@@ -26,10 +26,9 @@ const AUTO_DISMISS_MS = 15_000;
 const TICK_MS = 250;
 const STORAGE_KEY = 'okc-demo-notice-dismissed';
 // Bump when the copy changes so people who dismissed the old wording see the
-// new one instead of it staying hidden forever.
-const NOTICE_VERSION = '1';
+// new one instead of it staying hidden forever. v2 dropped the contact line.
+const NOTICE_VERSION = '2';
 
-const CONTACT_EMAIL = 'im@okc.com';
 // Named because an unattributed "student project" claim is weaker than an
 // attributed one — this is the detail a Safe Browsing reviewer can check.
 const INSTITUTION = 'Ngee Ann Polytechnic';
@@ -94,8 +93,8 @@ export default function DemoNotice() {
   }, [visible]);
 
   // Auto-dismiss. Counted down in ticks rather than one setTimeout so hovering
-  // can pause it — otherwise the notice can vanish just as someone reaches for
-  // the contact link inside it.
+  // can pause it — the notice is several lines long, and pulling it away from
+  // someone who is still reading it defeats the point of showing it.
   useEffect(() => {
     if (!visible || leaving) return undefined;
     let remaining = AUTO_DISMISS_MS;
@@ -140,8 +139,8 @@ export default function DemoNotice() {
         onMouseLeave={() => {
           pausedRef.current = false;
         }}
-        // React's focus events bubble, so these also fire for the dismiss
-        // button and the mailto link — keyboard users get the same pause.
+        // React's focus events bubble, so these also fire when the dismiss
+        // button is focused — keyboard users get the same pause.
         onFocus={() => {
           pausedRef.current = true;
         }}
@@ -191,14 +190,7 @@ export default function DemoNotice() {
               )}{' '}
               built by students at {INSTITUTION}. It is a coursework mockup and is not
               intended to imitate or impersonate any other website. It holds no real money,
-              takes no payments, and every figure shown is fictional sample data. Questions:{' '}
-              <a
-                href={`mailto:${CONTACT_EMAIL}`}
-                className="font-medium text-[#1f6bff] hover:underline"
-              >
-                {CONTACT_EMAIL}
-              </a>
-              .
+              takes no payments, and every figure shown is fictional sample data.
             </p>
 
           </div>
