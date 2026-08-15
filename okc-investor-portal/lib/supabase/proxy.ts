@@ -99,7 +99,18 @@ export async function updateSession(request: NextRequest) {
   // '/api/cron' is machine-to-machine (a scheduler, not a browser session) —
   // it has no user to authenticate here, so it does its own CRON_SECRET
   // bearer-token check inside the route handler instead.
-  const publicRoutes = ['/login', '/forgot-password', '/auth', '/debug-users', '/api/cron']
+  // '/api/health' is the load balancer's target: it carries no cookies, so
+  // gating it would answer 401 and every instance would be marked unhealthy.
+  // Being public also makes it a re-auth route below, which is what we want —
+  // a health check every 15s must never keep an idle session alive.
+  const publicRoutes = [
+    '/login',
+    '/forgot-password',
+    '/auth',
+    '/debug-users',
+    '/api/cron',
+    '/api/health',
+  ]
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   )
