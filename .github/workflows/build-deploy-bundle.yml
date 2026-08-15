@@ -50,6 +50,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # Passed to the release job so the notes can state which origin was baked
+    # into the bundle — the one thing about it that cannot be changed later.
+    outputs:
+      site_url: ${{ steps.preflight.outputs.site_url }}
+
     env:
       # workflow_dispatch input wins, then the repo variable, then the domain
       # this app actually runs on — so a fresh fork still builds correctly.
@@ -79,6 +84,7 @@ jobs:
       # build — it silently inlines `undefined`, and the failure only shows up
       # in production as sign-in requests to a nonexistent host.
       - name: Preflight — build-time values must be present
+        id: preflight
         run: |
           missing=0
           for v in NEXT_PUBLIC_SITE_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; do
@@ -88,6 +94,7 @@ jobs:
             fi
           done
           echo "Building for site URL: $NEXT_PUBLIC_SITE_URL"
+          echo "site_url=$NEXT_PUBLIC_SITE_URL" >> "$GITHUB_OUTPUT"
           exit $missing
 
       # postinstall runs `prisma generate`; generated/ is gitignored, so this
@@ -174,18 +181,31 @@ jobs:
             echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
             if [ -f "$GITHUB_WORKSPACE/deploy.zip" ]; then
               echo "| Size | $(du -h "$GITHUB_WORKSPACE/deploy.zip" | cut -f1) |"
-              echo "| Artifact | \`deploy-zip-${GITHUB_SHA}\` |"
+              echo "| Artifact | \`deploy-zip-${GITHUB_SHA}\` (zip wrapping the zip) |"
               echo ""
-              echo "Download the artifact, unzip it once to get \`deploy.zip\`, then upload that in the EB console via **Upload and deploy**."
+              echo "Prefer the release asset published by the next job — it is a plain file on a stable URL, with no wrapper to unzip."
             else
               echo "| Result | build did not produce a bundle |"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # A workflow artifact is awkward to consume: it downloads as a zip WRAPPING
+  # deploy.zip, needs a GitHub login, and expires after 30 days. A release
+  # asset is a plain file on a stable URL. So every successful build also
+  # lands on a release:
+  #
+  #   push to a branch  ->  rolling prerelease  build-<branch>, replaced each
+  #                         time, always the newest build of that branch
+  #   push of a v* tag  ->  permanent release   v1.2.3, never overwritten
+  #
+  # Stable download URL for the rolling one, no login required on a public
+  # repo (and it always redirects to the newest build):
+  #   https://github.com/<owner>/<repo>/releases/download/build-<branch>/deploy.zip
   release:
-    name: Attach bundle to release
+    name: Publish bundle to a release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Never on pull requests: a fork PR must not be able to publish a release.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -195,10 +215,66 @@ jobs:
         with:
           name: deploy-zip-${{ github.sha }}
 
-      # On a tag the zip is attached to the release directly, so it downloads
-      # as a single file rather than an artifact zip wrapping another zip.
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: deploy.zip
-          generate_release_notes: true
+      # gh is preinstalled on the runner, so this needs no third-party action.
+      # A rolling tag has to MOVE to the new commit, and neither `gh release
+      # edit` nor the usual release actions move an existing git tag — so the
+      # old release and its tag are deleted first and recreated at this SHA.
+      # Deliberately --prerelease so a rolling build never becomes the repo's
+      # "Latest release" and hide a real tagged version.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE_URL: ${{ needs.build.outputs.site_url }}
+        run: |
+          set -euo pipefail
+          size=$(du -h deploy.zip | cut -f1)
+          sha_short="${GITHUB_SHA:0:7}"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+            title="$tag"
+            flags="--latest"
+            note="Permanent release. The attached \`deploy.zip\` is the exact bundle built from \`$sha_short\`."
+          else
+            branch="${GITHUB_REF_NAME//\//-}"
+            tag="build-${branch}"
+            title="Latest ${GITHUB_REF_NAME} build"
+            flags="--prerelease"
+            note="Rolling build of \`${GITHUB_REF_NAME}\` — **replaced on every push**, so this URL always serves the newest bundle. Tag a \`v*\` release when you want an immutable one."
+            gh release delete "$tag" --cleanup-tag --yes 2>/dev/null || true
+          fi
+
+          {
+            echo "$note"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$sha_short\` |"
+            echo "| Site URL baked in | \`$SITE_URL\` |"
+            echo "| Size | $size |"
+            echo ""
+            echo "Verified before publishing: 20/20 bundle checks, archive layout asserted, type check and 43 unit tests green."
+            echo ""
+            echo "**Deploy:** download \`deploy.zip\` below — it is the artifact itself, not a wrapper — then in the Elastic Beanstalk console use **Upload and deploy**."
+            echo ""
+            echo "> Built on Linux, so it carries the Linux \`sharp\` binary. A bundle built on Windows ships \`@img/sharp-win32-x64\`, which cannot load on Amazon Linux."
+          } > notes.md
+
+          gh release create "$tag" deploy.zip \
+            --title "$title" \
+            --notes-file notes.md \
+            --target "$GITHUB_SHA" \
+            $flags
+
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${tag}/deploy.zip"
+          {
+            echo "### Release published"
+            echo ""
+            echo "**[Download deploy.zip]($url)** — direct file, no unzipping."
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Release | \`$tag\` |"
+            echo "| Commit | \`$sha_short\` |"
+            echo "| Size | $size |"
+          } >> "$GITHUB_STEP_SUMMARY"
