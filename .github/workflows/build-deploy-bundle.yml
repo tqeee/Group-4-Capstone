@@ -230,6 +230,10 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh normally infers the repository from the git remote. There is no
+          # checkout in this job, so without GH_REPO it fails with
+          # "not a git repository" before touching the API.
+          GH_REPO: ${{ github.repository }}
           SITE_URL: ${{ needs.build.outputs.site_url }}
         run: |
           set -euo pipefail
