@@ -1,0 +1,303 @@
+// Data architecture for the OKC investor portal.
+//
+// Datasets from the challenge statement:
+//   5.1 Investor accounts  -> Investor
+//   5.2 Fund flows         -> FundFlow
+//   5.3 Portfolio holdings -> derived from InvestorDailyLedger (see below)
+//   5.4 Broker deals       -> Deal (subset of the raw MT5 export we need)
+//
+// Instead of storing holdings as a wide "Fund 1 % / Fund 2 %" table (5.3 as
+// suggested), we persist the full daily recordkeeping described in section 8.1
+// (FundDailyNav + InvestorDailyLedger). Holdings for any as-of date are the
+// ledger's closing share percentages, and 8.2's performance metrics are sums /
+// compounds over the same rows — no re-derivation from raw deals at read time.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  INVESTOR
+  OPERATIONS
+  ADMIN
+  PORTFOLIO_MANAGER
+}
+
+// 5.1 Investor accounts. Auth lives in Supabase; this row is the portal
+// profile, linked by the Supabase user id once the invitation is accepted.
+model Investor {
+  id             String    @id @default(cuid())
+  authUserId     String?   @unique
+  email          String    @unique
+  name           String
+  role           Role      @default(INVESTOR)
+  onboardingDate DateTime  @default(now())
+
+  fundFlows   FundFlow[]
+  ledger      InvestorDailyLedger[]
+  preferences InvestorFundPreference[]
+
+  @@map("investors")
+}
+
+model Fund {
+  id            String   @id @default(cuid())
+  code          String   @unique // e.g. "XAU"
+  name          String
+  description   String?
+  currency      String   @default("SGD")
+  strategy      String?
+  inceptionDate DateTime
+
+  deals       Deal[]
+  fundFlows   FundFlow[]
+  dailyNav    FundDailyNav[]
+  ledger      InvestorDailyLedger[]
+  preferences InvestorFundPreference[]
+
+  @@map("funds")
+}
+
+// 3.4: the investor's instruction for how aggressively a fund may invest their
+// money. Set per fund, not per request — an investor who tops up twice keeps
+// one standing tolerance for that fund. Risk is chosen by the investor; funds
+// deliberately carry no risk level of their own.
+//
+// Declared low -> high to match the physical order of the Postgres enum (the
+// values were renamed in place from CONSERVATIVE/BALANCED/AGGRESSIVE, which
+// fixes that order). The UI renders them high -> low; see lib/riskTolerance.ts.
+enum RiskTolerance {
+  LOW
+  MODERATE
+  HIGH
+}
+
+// 3.4: standing risk-tolerance instruction for one investor in one fund.
+// Captured when they deposit and editable afterwards; operations and the
+// portfolio manager read it to see the mandate they are trading under.
+model InvestorFundPreference {
+  id            String        @id @default(cuid())
+  investorId    String
+  fundId        String
+  riskTolerance RiskTolerance
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  investor Investor @relation(fields: [investorId], references: [id])
+  fund     Fund     @relation(fields: [fundId], references: [id])
+
+  @@unique([investorId, fundId])
+  @@index([fundId])
+  @@map("investor_fund_preferences")
+}
+
+enum FlowType {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+// Bank-transfer confirmation workflow (deposits): PENDING -> ops approves,
+// emails bank details -> AWAITING_PROOF -> investor submits proof of
+// transfer -> PENDING_RECEIPT -> ops confirms receipt -> COMPLETED, which is
+// the only point money is applied to the fund ledger. Withdrawals skip the
+// transfer dance entirely: PENDING -> ops approves and pays out -> COMPLETED
+// directly (OKC is the one sending money, so there's nothing for the
+// investor to prove). REJECTED is reachable from any non-terminal status.
+//
+// The old APPROVED status (ledger already applied, about to be swept to
+// COMPLETED on next rebuild) is retired — Postgres can't drop an enum value
+// without recreating the type, so it stays defined in the DB but unused.
+enum FlowStatus {
+  PENDING
+  AWAITING_PROOF
+  PENDING_RECEIPT
+  REJECTED
+  COMPLETED
+}
+
+// 5.2 Fund flows: deposit / withdrawal requests. Request tracking is kept
+// separate from actual fund movement: a request only affects the ledger once
+// operations confirms receipt (deposits) or pays out (withdrawals) and a
+// processed date is set.
+model FundFlow {
+  id              String     @id @default(cuid()) // request id
+  investorId      String
+  fundId          String
+  type            FlowType
+  amount          Decimal    @db.Decimal(18, 2)
+  currency        String     @default("SGD")
+  status          FlowStatus @default(PENDING)
+  requestDate     DateTime   @default(now())
+  processedDate   DateTime?
+  reviewedBy      String? // email of the ops user who actioned it
+  note            String?
+  // Investor-submitted reference for their bank transfer (deposits only) —
+  // e.g. a bank transaction ID or note — for ops to check before confirming
+  // receipt. Free text, not a file upload.
+  proofOfTransfer String?
+  // 3.4: the tolerance the investor selected on THIS request. The standing
+  // instruction lives in InvestorFundPreference; this is the snapshot, so ops
+  // reviewing a request see what was asked for at the time even if it changed.
+  riskTolerance   RiskTolerance?
+
+  investor Investor @relation(fields: [investorId], references: [id])
+  fund     Fund     @relation(fields: [fundId], references: [id])
+
+  @@index([status])
+  @@index([investorId])
+  @@map("fund_flows")
+}
+
+// 5.4 Broker deals (MT5 raw export). We keep the fields needed for daily P&L
+// and drop the rest (magic, reason, sl/tp, ...) — documented decision per the
+// challenge statement.
+model Deal {
+  ticket     BigInt   @id
+  fundId     String
+  order      BigInt?
+  time       DateTime // execution time
+  type       Int // 0 = buy, 1 = sell, 2 = balance
+  entry      Int // 0 = in (open), 1 = out (close)
+  positionId BigInt?
+  volume     Decimal  @db.Decimal(18, 2)
+  price      Decimal  @db.Decimal(18, 5)
+  commission Decimal  @db.Decimal(18, 2)
+  swap       Decimal  @db.Decimal(18, 2)
+  profit     Decimal  @db.Decimal(18, 2)
+  fee        Decimal  @db.Decimal(18, 2)
+  symbol     String
+  comment    String?
+  batchId    String?
+
+  fund  Fund         @relation(fields: [fundId], references: [id])
+  batch ImportBatch? @relation(fields: [batchId], references: [id])
+
+  @@index([fundId, time])
+  // Teammate renamed the `deals` table to `investment_transactions` directly in
+  // the shared DB (pure ALTER TABLE RENAME — same columns/PK/FKs). Model + all
+  // `prisma.deal.*` code stay as-is; only the physical table name is remapped.
+  @@map("investment_transactions")
+}
+
+// Audit trail for the data ingestion pipeline (which file, who, how many rows).
+model ImportBatch {
+  id         String   @id @default(cuid())
+  fileName   String
+  kind       String   @default("deals")
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+  rowCount   Int
+  skipped    Int      @default(0)
+  status     String   @default("Validated")
+
+  deals Deal[]
+
+  @@map("import_batches")
+}
+
+// Annual management fee rate, as a history rather than a single current
+// value. rebuildFundLedger replays a fund's ENTIRE history on every deposit,
+// withdrawal, or CSV import — so a single "current rate" setting would mean
+// changing it silently restates every past day the next time anything
+// triggers a rebuild. The industry partner was explicit that a rate change
+// must apply going forward only, so each row here pins a rate to the day it
+// took effect, and lib/ledger.ts looks up the rate that was actually in
+// force on each day it replays, not whatever is configured today.
+model ManagementFeeRate {
+  id            String   @id @default(cuid())
+  annualPct     Decimal  @db.Decimal(6, 3)
+  effectiveFrom DateTime @db.Date
+  createdAt     DateTime @default(now())
+  createdBy     String
+
+  @@unique([effectiveFrom])
+  @@map("management_fee_rates")
+}
+
+// Section 8.1: fund-level daily record. closing = opening + pnl + netFlows.
+model FundDailyNav {
+  id             String   @id @default(cuid())
+  fundId         String
+  date           DateTime @db.Date
+  openingBalance Decimal  @db.Decimal(18, 2)
+  pnl            Decimal  @db.Decimal(18, 2)
+  // That day's accrued management fee, already netted into `pnl` above (so
+  // closing = opening + pnl + netFlows still holds unchanged) — persisted
+  // separately purely so it can be shown to investors as its own line item,
+  // distinct from trading P&L, per the industry partner's answer.
+  managementFee  Decimal  @default(0) @db.Decimal(18, 2)
+  netFlows       Decimal  @db.Decimal(18, 2)
+  closingBalance Decimal  @db.Decimal(18, 2)
+
+  // Added directly to the shared DB by a teammate (analytics — §8.2/§3.5).
+  // Modeled here (nullable, @map to their snake_case names) purely so that a
+  // future `prisma migrate dev` recognises them and does NOT drop their work.
+  dailyReturnPct Decimal? @map("daily_return_pct")
+  tradeCount     Int?     @map("trade_count")
+
+  // When this row was last (re)computed by rebuildFundLedger — the real
+  // "NAV as of ... <time>" shown in the UI, replacing a hardcoded placeholder.
+  updatedAt DateTime @updatedAt
+
+  fund Fund @relation(fields: [fundId], references: [id])
+
+  @@unique([fundId, date])
+  @@map("fund_daily_nav")
+}
+
+// Section 8.1: per-investor intermediate workings, one row per investor per
+// day. 5.3 holdings = closingSharePct on the requested as-of date; 8.2 total
+// dollar PNL = sum(pnl) over the requested period.
+model InvestorDailyLedger {
+  id              String   @id @default(cuid())
+  investorId      String
+  fundId          String
+  date            DateTime @db.Date
+  openingSharePct Decimal  @db.Decimal(12, 8) // 0..1
+  openingValue    Decimal  @db.Decimal(18, 2)
+  pnl             Decimal  @db.Decimal(18, 2) // this investor's share of the day's fund P&L (DB column was renamed from pnlShare)
+  // This investor's pro-rata share of that day's management fee — already
+  // netted into `pnl` above; see the matching field on FundDailyNav.
+  managementFee   Decimal  @default(0) @db.Decimal(18, 2)
+  closingValue    Decimal  @db.Decimal(18, 2)
+  closingSharePct Decimal  @db.Decimal(12, 8)
+
+  // When this row was last (re)computed by rebuildFundLedger.
+  updatedAt DateTime @updatedAt
+
+  investor Investor @relation(fields: [investorId], references: [id])
+  fund     Fund     @relation(fields: [fundId], references: [id])
+
+  @@unique([investorId, fundId, date])
+  @@index([fundId, date])
+  @@map("investor_daily_ledger")
+}
+
+// 3.1: audit logging of authentication-related (and admin / ops) activities.
+model AuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  actorEmail String?
+  action     String // e.g. LOGIN_SUCCESS, LOGIN_FAILED, USER_INVITED, FLOW_APPROVED
+  detail     String?
+  ip         String?
+  success    Boolean  @default(true)
+
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Admin-configurable portal settings (minimum deposit, etc.), key-value.
+model PortalSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("portal_settings")
+}

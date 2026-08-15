@@ -1,0 +1,4 @@
+ticket,order,time,time_msc,type,entry,magic,reason,position_id,volume,price,commission,swap,profit,fee,sl,tp,symbol,comment,external_id
+600001,601002,1775700900,1775700900000,0,1,20260409,0,95001,1,3312.4,-3.5,0,512.3,0,0,0,XAUUSD,ea-close,
+600002,601003,1775716800,1775716800000,1,1,20260409,0,95002,0.75,3298.1,-2.6,-1.2,-284.75,0,0,0,XAUUSD,ea-close,
+600003,601004,1775732700,1775732700000,0,1,20260409,0,95003,1.25,3321.7,-4.4,0,391.1,0,0,0,XAUUSD,ea-close,

@@ -6,12 +6,13 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    files: ["server/**/*.js"],
-    languageOptions: {
-      sourceType: "commonjs",
-    },
     rules: {
-      "@typescript-eslint/no-require-imports": "off",
+      // Allow intentionally-unused args/vars when prefixed with `_`
+      // (e.g. the `_prevState` argument required by useActionState actions).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
   // Override default ignores of eslint-config-next.

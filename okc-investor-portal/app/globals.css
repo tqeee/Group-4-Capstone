@@ -12,15 +12,144 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/*
+ * The portal is deliberately light-themed (every surface uses explicit
+ * bg-white/gray utilities). The create-next-app dark-mode override was
+ * removed: it flipped the inherited text colour to #ededed for dark-mode
+ * users, which made unstyled form inputs render grey-on-white.
+ */
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Shared component classes for repeated Tailwind combinations.
+ * Apply alongside one-off utilities, e.g. className="card p-6".
+ */
+@layer components {
+
+  /* ---- Dashboard (investor) pages ---- */
+
+  .card {
+    @apply bg-white rounded-xl border border-gray-200;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold text-gray-900;
+  }
+
+  .page-subtitle {
+    @apply text-gray-400 text-sm mt-1;
+  }
+
+  .section-label {
+    @apply text-xs text-gray-400 font-medium tracking-wide;
+  }
+
+  .pill {
+    @apply px-4 py-2 rounded-full text-sm font-medium transition;
+  }
+
+  .pill-active {
+    @apply bg-blue-700 text-white;
+  }
+
+  .pill-inactive {
+    @apply bg-white border border-gray-200 text-gray-500 hover:text-gray-700;
+  }
+
+  .badge {
+    @apply text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+
+  .table-header-cell {
+    @apply text-left text-xs text-gray-400 font-medium px-6 py-4;
+  }
+
+  .table-cell {
+    @apply px-6 py-4 text-sm whitespace-nowrap;
+  }
+
+  /* ---- Auth pages (login, forgot-password) ---- */
+
+  .auth-input {
+    @apply w-full rounded-2xl border border-[#d8e1ef] bg-white px-[clamp(1rem,1.6vw,1.5rem)] py-[clamp(0.75rem,1.3vw,1.25rem)] text-[clamp(1rem,1.05vw,1.125rem)] text-slate-800 outline-none placeholder:text-[#7c8aa5] focus:border-[#1f6bff];
+  }
+
+  .auth-label {
+    @apply mb-[clamp(0.5rem,0.8vw,0.75rem)] block text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-slate-900;
+  }
+
+  .auth-button-primary {
+    @apply w-full rounded-2xl bg-[#1554ff] py-[clamp(0.75rem,1.3vw,1.25rem)] text-[clamp(1rem,1.2vw,1.25rem)] font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:bg-[#0047ff] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .auth-status-message {
+    @apply rounded-xl px-[clamp(1rem,1.3vw,1.25rem)] py-[clamp(0.75rem,1vw,1rem)] text-[clamp(0.875rem,0.95vw,1rem)] font-medium;
+  }
+
+  .status-success {
+    @apply bg-green-50 text-green-700;
+  }
+
+  .status-error {
+    @apply bg-red-50 text-red-600;
+  }
+
+  .status-info {
+    @apply bg-amber-50 text-amber-700;
+  }
+
+  /* ---- MFA pages (compact card, fixed sizing — not viewport-scaled) ---- */
+
+  .mfa-card {
+    @apply w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-7;
+  }
+
+  .mfa-code-input {
+    @apply w-full rounded-xl border border-slate-300 px-4 py-2.5 text-center text-xl font-semibold tracking-[0.4em] text-slate-900 outline-none transition placeholder:text-slate-300 placeholder:tracking-[0.4em] focus:border-blue-600 focus:ring-2 focus:ring-blue-100;
+  }
+
+  /* Tailwind v4 cannot @apply another @layer class, so the shared button base
+     is repeated in each variant rather than extracted. */
+  .mfa-button-primary {
+    @apply block w-full rounded-xl bg-[#1554ff] py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[#0047ff] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .mfa-button-secondary {
+    @apply block w-full rounded-xl border border-gray-200 py-2.5 text-center text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .mfa-button-danger {
+    @apply block w-full rounded-xl border border-red-200 py-2.5 text-center text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .mfa-note {
+    @apply rounded-lg px-3 py-2 text-sm font-medium;
+  }
+
+  /* ---- Debug-users page ---- */
+
+  .panel {
+    @apply rounded-2xl bg-white p-8 shadow-sm border;
+  }
+
+  .status-message {
+    @apply rounded-lg px-3 py-2 text-sm;
+  }
+
+  .debug-input {
+    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500;
+  }
+
+  .debug-label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+  }
+
+  .debug-button {
+    @apply w-full rounded-lg py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
 }
