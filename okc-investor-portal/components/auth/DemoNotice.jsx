@@ -7,11 +7,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * domain as a deceptive site. See CLAUDE.md "Done #46" for the full context
  * and for how to remove it.
  *
- * A cookie-banner-style notice on /login that says plainly whose site this is
- * and that OKC never asks for credentials out of band. It does not clear the
- * Safe Browsing flag on its own — that needs a review request in Google Search
- * Console — but it is the standard anti-phishing signal a human reviewer looks
- * for on a login page, and it is worth having regardless.
+ * A cookie-banner-style notice on /login stating plainly that this is a
+ * student capstone demo rather than a live financial service. It does not
+ * clear the Safe Browsing flag on its own — that needs a review request in
+ * Google Search Console — but "deceptive" is a claim about intent, and saying
+ * outright what the site is and is not is the most direct answer to it.
  *
  * Deliberately self-contained: one file, no CSS additions, no props, no server
  * work. Removing the feature is deleting this file and the two lines that
@@ -24,12 +24,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const AUTO_DISMISS_MS = 15_000;
 const TICK_MS = 250;
-const STORAGE_KEY = 'okc-security-notice-dismissed';
+const STORAGE_KEY = 'okc-demo-notice-dismissed';
 // Bump when the copy changes so people who dismissed the old wording see the
 // new one instead of it staying hidden forever.
 const NOTICE_VERSION = '1';
 
 const CONTACT_EMAIL = 'im@okc.com';
+// Named because an unattributed "student project" claim is weaker than an
+// attributed one — this is the detail a Safe Browsing reviewer can check.
+const INSTITUTION = 'Ngee Ann Polytechnic';
 
 // Inlined at build time from NEXT_PUBLIC_SITE_URL. Wrapped because a missing
 // or malformed value would otherwise throw while rendering the health check
@@ -42,7 +45,7 @@ const EXPECTED_HOST = (() => {
   }
 })();
 
-export default function SecurityNotice() {
+export default function DemoNotice() {
   // Both start false so the server render and the first client render agree —
   // the real decision needs localStorage, which only exists after mount.
   const [visible, setVisible] = useState(false);
@@ -96,9 +99,21 @@ export default function SecurityNotice() {
   useEffect(() => {
     if (!visible || leaving) return undefined;
     let remaining = AUTO_DISMISS_MS;
+    let last = Date.now();
     const id = setInterval(() => {
-      if (pausedRef.current) return;
-      remaining -= TICK_MS;
+      // Measure elapsed wall-clock time rather than assuming each tick is
+      // TICK_MS apart: a background tab has its timers throttled to roughly
+      // 1/second, which would stretch a 15s budget into minutes.
+      const now = Date.now();
+      const elapsed = now - last;
+      last = now;
+      // Pause while the pointer/focus is on the card, and while the tab is
+      // hidden. The second one matters because timers keep running in a
+      // background tab but requestAnimationFrame does not — without it the
+      // card can spend its whole budget still sitting at opacity 0 and dismiss
+      // itself, marked as seen by someone who never saw it.
+      if (pausedRef.current || document.hidden) return;
+      remaining -= elapsed;
       if (remaining <= 0) {
         clearInterval(id);
         dismiss();
@@ -139,9 +154,11 @@ export default function SecurityNotice() {
       >
         <div className="flex items-start gap-3 sm:gap-4">
 
+          {/* Mortarboard: says "student project" before a word is read, which
+              is the whole point of the banner. */}
           <span
             aria-hidden="true"
-            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#1554ff]"
+            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600"
           >
             <svg
               viewBox="0 0 24 24"
@@ -152,27 +169,29 @@ export default function SecurityNotice() {
               strokeLinejoin="round"
               className="h-5 w-5"
             >
-              <path d="M12 3 4 6v6c0 4.4 3.4 8.3 8 9 4.6-.7 8-4.6 8-9V6l-8-3Z" />
-              <path d="m9 12 2 2 4-4" />
+              <path d="M22 9 12 4 2 9l10 5 10-5Z" />
+              <path d="M6 11.5V16c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-4.5" />
             </svg>
           </span>
 
           <div className="min-w-0 flex-1">
 
             <p className="text-sm font-semibold text-[#071437]">
-              You&rsquo;re on the official OKC investor portal
-              {EXPECTED_HOST && (
-                <>
-                  {' — '}
-                  <span className="font-mono font-medium">{EXPECTED_HOST}</span>
-                </>
-              )}
+              Please note: this is a student project, not a live service
             </p>
 
             <p className="mt-1 text-sm leading-relaxed text-[#6b7894]">
-              We use only the cookies needed to keep you signed in. OKC will never ask for
-              your password, one-time code, or bank details by email, phone, or message
-              &mdash; if something asks for those, don&rsquo;t respond and contact{' '}
+              {EXPECTED_HOST ? (
+                <>
+                  <span className="font-mono">{EXPECTED_HOST}</span> is a final-year capstone
+                  demo
+                </>
+              ) : (
+                'This is a final-year capstone demo'
+              )}{' '}
+              built by students at {INSTITUTION}. It is a coursework mockup and is not
+              intended to imitate or impersonate any other website. It holds no real money,
+              takes no payments, and every figure shown is fictional sample data. Questions:{' '}
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
                 className="font-medium text-[#1f6bff] hover:underline"

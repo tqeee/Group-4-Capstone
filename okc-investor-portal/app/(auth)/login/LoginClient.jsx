@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import Link from 'next/link';
 import AuthBrandPanel from '@/components/auth/AuthBrandPanel';
-import SecurityNotice from '@/components/auth/SecurityNotice';
+import DemoNotice from '@/components/auth/DemoNotice';
 import { IDLE_TIMEOUT_MS } from '@/lib/auth/idle';
 import { login } from './actions';
 
@@ -123,10 +123,10 @@ export default function LoginClient({ timedOut = false, signedInElsewhere = fals
         </div>
       </section>
 
-      {/* ⚠ Temporary anti-phishing notice — CLAUDE.md "Done #46" explains why
-          it exists and how to remove it. Fixed-position, so it can sit here
+      {/* ⚠ Temporary student-project disclosure — CLAUDE.md "Done #46" explains
+          why it exists and how to remove it. Fixed-position, so it can sit here
           rather than being woven into the split layout. */}
-      <SecurityNotice />
+      <DemoNotice />
     </main>
   );
 }
