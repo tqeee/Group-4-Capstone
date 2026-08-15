@@ -17,10 +17,10 @@
 // name as a substring (case-insensitive) — e.g. "YEN" or "okc-yen-fund" will
 // both match a fund named "OKC Yen Fund" with code "YEN".
 
-// `dotenv/config` only reads `.env`, which this project does not have — the
-// connection strings live in `.env.local` (same fix as prisma.config.ts;
-// without this DATABASE_URL is undefined and the pg driver silently falls
-// back to trying localhost:5432, which shows up as ECONNREFUSED).
+// The connection strings live in `.env`, with `.env.local` first so a local
+// override wins (same pattern as prisma.config.ts). Without this DATABASE_URL
+// is undefined and the pg driver silently falls back to trying
+// localhost:5432, which shows up as ECONNREFUSED.
 import { config } from 'dotenv'
 config({ path: ['.env.local', '.env'] })
 import { prisma } from '../lib/db'

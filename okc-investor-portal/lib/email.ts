@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-// Transactional email via Resend. Configure in .env.local:
+// Transactional email via Resend. Configure in .env:
 //   RESEND_API_KEY  (dashboard > API Keys)
 //   EMAIL_FROM      (verified sender; defaults to Resend's onboarding sender,
 //                    which can only deliver to the account owner's address)
@@ -21,7 +21,7 @@ export async function sendCredentialsEmail({
   if (!apiKey) {
     return {
       sent: false,
-      reason: 'Email is not configured (set RESEND_API_KEY in .env.local).',
+      reason: 'Email is not configured (set RESEND_API_KEY in .env).',
     }
   }
 
@@ -104,7 +104,7 @@ export async function sendBankDetailsEmail({
   if (!apiKey) {
     return {
       sent: false,
-      reason: 'Email is not configured (set RESEND_API_KEY in .env.local).',
+      reason: 'Email is not configured (set RESEND_API_KEY in .env).',
     }
   }
 
