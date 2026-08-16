@@ -16,7 +16,7 @@ export default function LoginClient({ timedOut = false, signedInElsewhere = fals
       <AuthBrandPanel />
 
       {/* RIGHT PANEL */}
-      <section className="flex w-1/2 items-center justify-center bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)]">
+      <section className="flex w-full items-center justify-center bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)] md:w-1/2">
 
         <div className="w-full max-w-xl">
 

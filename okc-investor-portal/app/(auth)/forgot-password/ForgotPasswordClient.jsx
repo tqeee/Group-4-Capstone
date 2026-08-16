@@ -14,7 +14,7 @@ export default function ForgotPasswordClient({ linkError, expired }) {
       <AuthBrandPanel />
 
       {/* RIGHT PANEL */}
-      <section className="flex w-1/2 items-center justify-center bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)]">
+      <section className="flex w-full items-center justify-center bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)] md:w-1/2">
         <div className="w-full max-w-xl">
 
           <h2 className="mb-[clamp(0.5rem,1vw,1rem)] text-[clamp(1.75rem,3vw,3rem)] font-bold leading-tight text-[#071437]">

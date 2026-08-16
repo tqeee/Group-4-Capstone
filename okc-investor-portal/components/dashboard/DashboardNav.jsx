@@ -196,6 +196,20 @@ export default function DashboardNav({
 }) {
   const pathname = usePathname();
   const isActive = href => pathname === href || pathname.startsWith(`${href}/`);
+  const mobileNavRef = useRef(null);
+
+  // The mobile pill strip scrolls horizontally, and with enough nav items
+  // the active page's own pill can land off-screen (confirmed: on
+  // /request-transaction, its pill sat past the visible edge with the strip
+  // still scrolled to the start) — so the nav looked like nothing was
+  // selected. Scroll it into view whenever the route changes.
+  useEffect(() => {
+    // Instant, not smooth: this runs on page load (including the very first
+    // paint), not in response to something the user just did — an animated
+    // scroll firing on its own read as more surprising than helpful.
+    const activeLink = mobileNavRef.current?.querySelector('[aria-current="page"]');
+    activeLink?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -220,27 +234,34 @@ export default function DashboardNav({
             </div>
           </div>
 
-          {/* ── Mobile search + pill nav ────────────────────────────── */}
+          {/* ── Mobile search + tab nav ─────────────────────────────── */}
           {searchPath && (
             <div className="pb-3 md:hidden">
               <SearchForm searchPath={searchPath} placeholder={searchPlaceholder} />
             </div>
           )}
-          <nav className="flex gap-1 overflow-x-auto pb-3 lg:hidden">
+          {/* Same underline-tab treatment as the desktop row below, just in a
+              horizontally-scrollable strip — there's no room to show every
+              tab at once, but that's no reason for it to look like a
+              different, separate piece of UI from the desktop nav. */}
+          <nav ref={mobileNavRef} className="flex gap-1 overflow-x-auto lg:hidden">
             {navItems.map(item => (
               <Link
                 key={item.label}
                 href={item.href}
-                // Same constant weight as the desktop row — the mobile strip
-                // scrolls horizontally, so a widening active pill nudged the
-                // scroll position too.
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                aria-current={isActive(item.href) ? 'page' : undefined}
+                className={`group -mb-px flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 pb-3 pt-1 text-sm font-medium transition ${
                   isActive(item.href)
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
                 }`}
               >
-                <NavIcon label={item.label} className="h-4 w-4" />
+                <NavIcon
+                  label={item.label}
+                  className={`h-4 w-4 flex-shrink-0 ${
+                    isActive(item.href) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                  }`}
+                />
                 {item.label}
               </Link>
             ))}
@@ -252,6 +273,7 @@ export default function DashboardNav({
               <Link
                 key={item.label}
                 href={item.href}
+                aria-current={isActive(item.href) ? 'page' : undefined}
                 // font-medium on BOTH states: making only the active tab
                 // semibold changed its width (measured: ±4.6px), which shifted
                 // every tab in the row on navigation and made the underline

@@ -171,7 +171,7 @@ export default function ChangePasswordClient({ needsMfa, accountEmail = null }) 
           .sr-only is position:absolute) resolved against the document instead
           and added 9px of page scroll — invisible, but enough to unlock the
           whole view and reintroduce the blank bands. */}
-      <section className="relative flex w-1/2 justify-center overflow-y-auto bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)] py-[clamp(2rem,4vw,4rem)]">
+      <section className="relative flex w-full justify-center overflow-y-auto bg-[#fbfcff] px-[clamp(2rem,5vw,6rem)] py-[clamp(2rem,4vw,4rem)] md:w-1/2">
         <div className="my-auto w-full max-w-xl">
 
           {!mfaCleared ? (

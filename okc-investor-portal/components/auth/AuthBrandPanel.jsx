@@ -3,7 +3,7 @@ import buildingImage from '@/public/images/building.jpg';
 export default function AuthBrandPanel() {
   return (
     <section
-      className="relative flex w-1/2 flex-col justify-center overflow-hidden px-[clamp(2rem,4vw,5rem)] text-white"
+      className="relative hidden w-1/2 flex-col justify-center overflow-hidden px-[clamp(2rem,4vw,5rem)] text-white md:flex"
       style={{
         backgroundImage: `
           linear-gradient(rgba(0, 26, 88, 0.82), rgba(0, 26, 88, 0.86)),
