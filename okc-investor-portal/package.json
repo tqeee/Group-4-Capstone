@@ -13,11 +13,13 @@
     "test": "vitest run",
     "ledger:check": "tsx scripts/rebuild-ledgers.ts --check",
     "ledger:rebuild": "tsx scripts/rebuild-ledgers.ts",
+    "benchmark:dashboard": "tsx scripts/benchmark-dashboard.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@react-pdf/renderer": "^4.6.1",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "chart.js": "^4.5.1",
@@ -37,6 +39,8 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "lighthouse": "^13.4.1",
+    "playwright": "^1.62.1",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",

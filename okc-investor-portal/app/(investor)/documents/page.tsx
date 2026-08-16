@@ -48,10 +48,9 @@ export default async function DocumentsPage() {
                       {fmtMonth(monthIso)} — Account Statement
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Daily P&L, deposits/withdrawals, closing values and fund share for{' '}
-                      {fmtMonth(monthIso)}.
+                      Daily P&L, deposits/withdrawals and closing values for {fmtMonth(monthIso)}.
                     </p>
-                    <p className="text-xs font-medium text-gray-400 mt-1">CSV · generated on demand</p>
+                    <p className="text-xs font-medium text-gray-400 mt-1">PDF · generated on demand</p>
                   </div>
                 </div>
 

@@ -134,7 +134,6 @@ export default function InvestorDashboard({ name, overview, availableFunds = [],
     mtd: fmtMoney(fund.mtdPnl, { sign: true }),
     inception: fmtMoney(fund.inceptionPnl, { sign: true }),
     ytd: fmtMoney(fund.ytdPnl, { sign: true }),
-    share: `${fund.fundSharePct.toFixed(2)}%`,
   }));
 
   return (

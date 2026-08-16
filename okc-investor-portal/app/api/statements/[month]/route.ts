@@ -3,9 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/db'
 import { getInvestorByAuth } from '@/lib/queries'
 import { audit } from '@/lib/audit'
+import { renderStatementPdf, type StatementRow } from '@/lib/statementPdf'
 
 // GET /api/statements/2026-03 — the signed-in investor's account statement for
-// that month, generated from the daily ledger (§8.1 workings) as CSV.
+// that month, generated from the daily ledger (§8.1 workings) as a PDF.
+// Deliberately excludes fund share % — see the schema comment on
+// InvestorOverview.allocation in lib/queries.ts.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ month: string }> }
@@ -55,54 +58,29 @@ export async function GET(
   const flowFor = (fundId: string, date: Date) =>
     flowByKey.get(`${fundId}|${date.toISOString().slice(0, 10)}`) ?? 0
 
-  const esc = (v: string | number) => `"${String(v).replaceAll('"', '""')}"`
-  const lines = [
-    ['OKC Investor Portal — Account Statement'],
-    [`Investor:`, investor.name, investor.email],
-    [`Period:`, month],
-    [`Generated:`, new Date().toISOString()],
-    [`Note:`, 'Daily P&L already reflects the Management Fee deduction; Management Fee is shown separately for transparency.'],
-    [],
-    [
-      'Date',
-      'Fund',
-      'Opening Value',
-      'Daily P&L',
-      'Management Fee',
-      'Deposits/Withdrawals',
-      'Closing Value',
-      'Fund Share %',
-    ],
-    ...rows.map(r => [
-      r.date.toISOString().slice(0, 10),
-      r.fund.name,
-      Number(r.openingValue).toFixed(2),
-      Number(r.pnl).toFixed(2),
-      Number(r.managementFee).toFixed(2),
-      flowFor(r.fundId, r.date).toFixed(2),
-      Number(r.closingValue).toFixed(2),
-      (Number(r.closingSharePct) * 100).toFixed(4),
-    ]),
-    [],
-    [
-      'Totals',
-      '',
-      Number(rows[0].openingValue).toFixed(2),
-      rows.reduce((s, r) => s + Number(r.pnl), 0).toFixed(2),
-      rows.reduce((s, r) => s + Number(r.managementFee), 0).toFixed(2),
-      rows.reduce((s, r) => s + flowFor(r.fundId, r.date), 0).toFixed(2),
-      Number(rows[rows.length - 1].closingValue).toFixed(2),
-      '',
-    ],
-  ]
-  const csv = lines.map(l => l.map(esc).join(',')).join('\r\n') + '\r\n'
+  const statementRows: StatementRow[] = rows.map(r => ({
+    date: r.date,
+    fundName: r.fund.name,
+    openingValue: Number(r.openingValue),
+    pnl: Number(r.pnl),
+    managementFee: Number(r.managementFee),
+    netFlow: flowFor(r.fundId, r.date),
+    closingValue: Number(r.closingValue),
+  }))
+
+  const pdf = await renderStatementPdf({
+    investorName: investor.name,
+    investorEmail: investor.email,
+    month,
+    rows: statementRows,
+  })
 
   await audit('STATEMENT_DOWNLOADED', { actor: investor.email, detail: month })
 
-  return new Response(csv, {
+  return new Response(new Uint8Array(pdf), {
     headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="okc-statement-${month}.csv"`,
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="okc-statement-${month}.pdf"`,
     },
   })
 }

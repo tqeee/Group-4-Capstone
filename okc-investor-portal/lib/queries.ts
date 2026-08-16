@@ -158,8 +158,12 @@ export type InvestorOverview = {
     currency: string
     strategy: string | null
     value: number
+    // Percentage of the INVESTOR'S OWN portfolio held in this fund — not the
+    // investor's ownership share of the fund's total pool. That figure
+    // (closingSharePct) is deliberately never surfaced to investors: it
+    // would let one investor back into another's holdings by reverse-
+    // engineering the fund's total AUM from their own known deposit.
     pctOfPortfolio: number
-    fundSharePct: number
     dayPnl: number
     mtdPnl: number
     ytdPnl: number
@@ -236,7 +240,6 @@ export async function getInvestorOverview(investorId: string): Promise<InvestorO
     strategy: r.fund.strategy,
     value: num(r.closingValue),
     pctOfPortfolio: last.value > 0 ? (num(r.closingValue) / last.value) * 100 : 0,
-    fundSharePct: num(r.closingSharePct) * 100,
     dayPnl: perFund.get(r.fundId)?.day ?? 0,
     mtdPnl: perFund.get(r.fundId)?.mtd ?? 0,
     ytdPnl: perFund.get(r.fundId)?.ytd ?? 0,

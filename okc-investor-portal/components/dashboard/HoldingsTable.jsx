@@ -1,4 +1,4 @@
-const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'MTD', 'SINCE INCEPTION', 'YTD', 'FUND SHARE'];
+const headers = ['FUND', 'MARKET VALUE', 'DAY P&L', 'MTD', 'SINCE INCEPTION', 'YTD'];
 
 export default function HoldingsTable({ data = [], footer = null }) {
   return (
@@ -33,10 +33,9 @@ export default function HoldingsTable({ data = [], footer = null }) {
               <td className={`py-4 pr-6 text-sm font-medium whitespace-nowrap ${h.inception.startsWith('-') ? 'text-red-500' : 'text-green-600'}`}>
                 {h.inception}
               </td>
-              <td className={`py-4 pr-6 text-sm font-medium whitespace-nowrap ${h.ytd.startsWith('-') ? 'text-red-500' : 'text-green-600'}`}>
+              <td className={`py-4 text-sm font-medium whitespace-nowrap ${h.ytd.startsWith('-') ? 'text-red-500' : 'text-green-600'}`}>
                 {h.ytd}
               </td>
-              <td className="py-4 text-sm text-gray-600 whitespace-nowrap">{h.share}</td>
             </tr>
           ))}
         </tbody>
