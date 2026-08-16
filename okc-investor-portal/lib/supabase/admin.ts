@@ -8,7 +8,7 @@ export function createAdminClient() {
 
   if (!url || !serviceRoleKey) {
     throw new Error(
-      'SUPABASE_SERVICE_ROLE_KEY is not set. Add it to .env.local (Supabase dashboard > Project Settings > API) to use the admin client.'
+      'SUPABASE_SERVICE_ROLE_KEY is not set. Add it to .env (Supabase dashboard > Project Settings > API) to use the admin client.'
     )
   }
 

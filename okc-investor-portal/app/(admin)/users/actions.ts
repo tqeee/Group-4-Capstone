@@ -5,6 +5,11 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/auth/guards'
 import { normalizeRole, ROLES, type Role } from '@/lib/auth/roles'
+import {
+  getLockoutState,
+  lockedOutEmails,
+  LOCKOUT_CLEARED_ACTION,
+} from '@/lib/auth/lockout'
 import { sendCredentialsEmail } from '@/lib/email'
 import { getSiteOrigin } from '@/lib/site-url'
 import { prisma } from '@/lib/db'
@@ -273,6 +278,85 @@ export async function resetUserMfa(
   }
 }
  
+export type UnlockUserState =
+  | { status: 'success'; message: string }
+  | { status: 'error'; message: string }
+  | undefined
+
+// Clear a sign-in lockout (see lib/auth/lockout.ts).
+//
+// Without this the only way out of a lockout is to wait for the window to
+// roll, which means anyone who knows a user's email can keep that account
+// locked indefinitely — five bad guesses every fifteen minutes, forever. This
+// is the override for that, and for the ordinary case of a user who simply
+// mistyped their password five times and cannot wait.
+//
+// It does NOT touch the password or the account's enabled state: it only
+// resets the counter, so the user still has to sign in with credentials they
+// know. Nothing is deleted either — the failures stay in the audit log and
+// this writes its own rows on top (see below).
+export async function unlockUserAccount(
+  _prevState: UnlockUserState,
+  formData: FormData
+): Promise<UnlockUserState> {
+  const auth = await requireRole('admin')
+  if (!auth.ok) {
+    return { status: 'error', message: auth.message }
+  }
+
+  const userId = formData.get('userId')
+  if (typeof userId !== 'string' || !userId) {
+    return { status: 'error', message: 'Missing user id.' }
+  }
+
+  let admin
+  try {
+    admin = createAdminClient()
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Failed to create admin client.',
+    }
+  }
+
+  // Resolve the email from the user id server-side rather than accepting one
+  // posted by the client: the marker row written below is what unlocks an
+  // account, so trusting a caller-supplied address would turn this into an
+  // unlock-any-email primitive.
+  const { data: target, error: lookupError } = await admin.auth.admin.getUserById(userId)
+  if (lookupError || !target.user?.email) {
+    return { status: 'error', message: 'User not found.' }
+  }
+  const email = target.user.email.toLowerCase()
+
+  const { locked, failures } = await getLockoutState(email)
+  if (!locked) {
+    return { status: 'error', message: `${target.user.email} is not locked out.` }
+  }
+
+  // Two rows on purpose — these are two different facts, and each is the one
+  // a different reader will search for:
+  //  1. the login-state event, keyed on the ACCOUNT like LOGIN_FAILED /
+  //     LOGIN_SUCCESS / LOGIN_LOCKED. This is also the marker getLockoutState()
+  //     reads, so writing it IS the reset;
+  //  2. the admin-action event, keyed on the ADMIN like USER_DISABLED /
+  //     USER_MFA_RESET, so "what did this administrator do" stays answerable.
+  await audit(LOCKOUT_CLEARED_ACTION, {
+    actor: email,
+    detail: `${failures} failed sign-in attempt(s) cleared by ${auth.email}`,
+  })
+  await audit('USER_UNLOCKED', {
+    actor: auth.email,
+    detail: `${target.user.email} (${failures} failed sign-in attempt(s))`,
+  })
+
+  revalidatePath('/users')
+  return {
+    status: 'success',
+    message: `Sign-in lockout cleared for ${target.user.email}. They can try again now.`,
+  }
+}
+
 export type PortalUser = {
   id: string
   email: string
@@ -282,6 +366,11 @@ export type PortalUser = {
   createdAt: string
   lastSignInAt: string | null
   hasMfa: boolean
+  // Sign-in lockout state (lib/auth/lockout.ts). Independent of `status`:
+  // a locked account is still "Active" as far as Supabase is concerned —
+  // it is our own login gate refusing it, not a GoTrue ban.
+  lockedOut: boolean
+  failedAttempts: number
   // Investor-profile fields (dataset 5.1 / ledger-derived) — only populated
   // for role === 'investor'. Powers the "View Profile" button + portfolio
   // value column, reusing the same read model as the Operations Investors
@@ -331,9 +420,13 @@ export async function listUsers(): Promise<
   // profile (not just role=investor), but only investor rows have a
   // meaningful non-zero portfolio value; the client only renders the button
   // for role === 'investor' regardless.
-  const [profiles, investorDirectory] = await Promise.all([
+  //
+  // Lockouts come along for the ride: one grouped query for every locked
+  // email, so the table can show the state and offer "Unlock" per row.
+  const [profiles, investorDirectory, lockouts] = await Promise.all([
     prisma.investor.findMany({ select: { email: true, name: true } }),
     getInvestorsDirectory(),
+    lockedOutEmails(),
   ])
   const nameByEmail = new Map(profiles.map((p) => [p.email, p.name]))
   const investorByEmail = new Map(investorDirectory.map((i) => [i.email.toLowerCase(), i]))
@@ -355,12 +448,13 @@ export async function listUsers(): Promise<
  
   return {
     users: data.users.map((user) => {
-      const investorRow = investorByEmail.get(user.email?.toLowerCase() ?? '')
+      const emailKey = user.email?.toLowerCase() ?? ''
+      const investorRow = investorByEmail.get(emailKey)
       return {
         id: user.id,
         email: user.email ?? '(no email)',
         name:
-          nameByEmail.get(user.email?.toLowerCase() ?? '') ??
+          nameByEmail.get(emailKey) ??
           (user.user_metadata?.name as string | undefined) ??
           null,
         role: normalizeRole(user.app_metadata?.role),
@@ -368,6 +462,8 @@ export async function listUsers(): Promise<
         createdAt: user.created_at,
         lastSignInAt: user.last_sign_in_at ?? null,
         hasMfa: mfaUserIds.has(user.id),
+        lockedOut: lockouts.has(emailKey),
+        failedAttempts: lockouts.get(emailKey) ?? 0,
         investorId: investorRow?.id ?? null,
         onboardingDate: investorRow?.onboardingDate ?? null,
         portfolioValue: investorRow?.portfolioValue ?? null,

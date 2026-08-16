@@ -1,0 +1,8 @@
+# These ship to Linux (Elastic Beanstalk / nginx) and are executed there.
+# core.autocrlf=true on Windows would otherwise check them out with CRLF, and a
+# stray \r on a shebang line makes /bin/sh fail with a bare "not found".
+# scripts/build-eb-bundle.mjs also normalises these when assembling the bundle;
+# this keeps the working copy correct in the first place.
+*.sh text eol=lf
+Procfile text eol=lf
+.platform/**/*.conf text eol=lf

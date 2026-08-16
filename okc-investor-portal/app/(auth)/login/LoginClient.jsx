@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import Link from 'next/link';
 import AuthBrandPanel from '@/components/auth/AuthBrandPanel';
+import DemoNotice from '@/components/auth/DemoNotice';
 import { IDLE_TIMEOUT_MS } from '@/lib/auth/idle';
 import { login } from './actions';
 
@@ -40,7 +41,7 @@ export default function LoginClient({ timedOut = false, signedInElsewhere = fals
               else — only one session per account is allowed at a time. */}
           {signedInElsewhere && (
             <p className="auth-status-message status-info mb-[clamp(1.5rem,2vw,2rem)]">
-              You've been signed out because this account was signed in on another device.
+              You&rsquo;ve been signed out because this account was signed in on another device.
             </p>
           )}
 
@@ -121,6 +122,11 @@ export default function LoginClient({ timedOut = false, signedInElsewhere = fals
 
         </div>
       </section>
+
+      {/* ⚠ Temporary student-project disclosure — CLAUDE.md "Done #46" explains
+          why it exists and how to remove it. Fixed-position, so it can sit here
+          rather than being woven into the split layout. */}
+      <DemoNotice />
     </main>
   );
 }

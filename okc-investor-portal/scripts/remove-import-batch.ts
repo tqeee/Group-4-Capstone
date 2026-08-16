@@ -17,8 +17,8 @@
 // "yen" or "okc-yen-fund-usdjpy.csv" will both match a batch uploaded as
 // "okc-yen-fund-usdjpy.csv".
 
-// `dotenv/config` only reads `.env`, which this project does not have — the
-// connection strings live in `.env.local` (same fix as prisma.config.ts).
+// The connection strings live in `.env`, with `.env.local` first so a local
+// override wins (same pattern as prisma.config.ts).
 import { config } from 'dotenv'
 config({ path: ['.env.local', '.env'] })
 import { prisma } from '../lib/db'

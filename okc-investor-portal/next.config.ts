@@ -11,6 +11,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Emits .next/standalone — a self-contained server.js plus a pruned
+  // node_modules — so the Elastic Beanstalk bundle ships without source,
+  // devDependencies, or an install step on the instance.
+  output: "standalone",
+
   async headers() {
     return [
       {

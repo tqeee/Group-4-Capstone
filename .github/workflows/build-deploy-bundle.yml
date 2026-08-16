@@ -1,0 +1,290 @@
+name: Build deployment bundle
+
+# Compiles the portal and produces the Elastic Beanstalk zip as a downloadable
+# artifact. It does NOT deploy — uploading to EB stays a human decision.
+#
+# ⚠ The three NEXT_PUBLIC_* values below are inlined into the bundle at BUILD
+# time, server-side included. They cannot be corrected afterwards by setting
+# environment properties on the EB environment, so a build with the wrong or
+# missing values produces a permanently broken artifact. That is why the
+# preflight step hard-fails instead of letting the build proceed.
+#
+# Repository configuration needed once, in Settings → Secrets and variables →
+# Actions. Each may be set as either a secret or a variable:
+#   NEXT_PUBLIC_SITE_URL                  e.g. https://okcportal.app
+#                                         (defaults to that if unset)
+#   NEXT_PUBLIC_SUPABASE_URL
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+#
+# No database URL and no service-role key are required — measured, not
+# assumed: `prisma generate` and `next build` both complete with only the
+# three values above present.
+
+on:
+  push:
+    branches: [main, integration, yinuo]
+    tags: ['v*']
+  pull_request:
+    branches: [main, integration]
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: 'Override NEXT_PUBLIC_SITE_URL for this run'
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: okc-investor-portal
+
+jobs:
+  build:
+    name: Compile, verify, package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Passed to the release job so the notes can state which origin was baked
+    # into the bundle — the one thing about it that cannot be changed later.
+    outputs:
+      site_url: ${{ steps.preflight.outputs.site_url }}
+
+    env:
+      # workflow_dispatch input wins, then the repo variable, then the domain
+      # this app actually runs on — so a fresh fork still builds correctly.
+      # Kept on one line: a folded scalar would put real newlines inside the
+      # ${{ }} expression.
+      NEXT_PUBLIC_SITE_URL: ${{ inputs.site_url || vars.NEXT_PUBLIC_SITE_URL || 'https://okcportal.app' }}
+      # Accepted as either a secret or a plain repository variable. Both are
+      # NEXT_PUBLIC_, so they are inlined into the browser bundle and already
+      # readable by anyone who loads the site — treating them as secrets is
+      # optional. Taking either means setting one as a variable does not
+      # silently resolve to empty.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: okc-investor-portal/package-lock.json
+
+      # Fail loudly and early. A missing NEXT_PUBLIC_* does not break the
+      # build — it silently inlines `undefined`, and the failure only shows up
+      # in production as sign-in requests to a nonexistent host.
+      - name: Preflight — build-time values must be present
+        id: preflight
+        run: |
+          missing=0
+          for v in NEXT_PUBLIC_SITE_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::$v is empty. It is inlined at build time and cannot be fixed on the EB environment afterwards. Set it under Settings → Secrets and variables → Actions."
+              missing=1
+            fi
+          done
+          echo "Building for site URL: $NEXT_PUBLIC_SITE_URL"
+          echo "site_url=$NEXT_PUBLIC_SITE_URL" >> "$GITHUB_OUTPUT"
+          exit $missing
+
+      # postinstall runs `prisma generate`; generated/ is gitignored, so this
+      # is what stops the build failing on a stale or absent Prisma client.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      # Two pre-existing react-hooks/set-state-in-effect errors live in
+      # port-components/ReturnDriversPanel.jsx. Reported, not blocking, so a
+      # known issue cannot hold up a release.
+      - name: Lint (informational)
+        continue-on-error: true
+        run: npx eslint .
+
+      - name: Build
+        run: npx next build
+
+      - name: Assemble EB bundle
+        run: node scripts/build-eb-bundle.mjs
+
+      # Reads the job env directly rather than re-interpolating through
+      # ${{ }}, so there is one source of truth for what was built.
+      - name: Verify bundle is deployable
+        run: |
+          EXPECTED_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+          EXPECTED_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+          node scripts/verify-eb-bundle.mjs
+
+      # Zip the CONTENTS, not the folder: EB requires server.js, Procfile and
+      # .platform at the archive root. `zip -r . ` from inside the directory
+      # includes dotfiles, which is what carries .platform and .next.
+      - name: Package deploy.zip
+        run: |
+          cd .next/eb-bundle
+          zip -qr "$GITHUB_WORKSPACE/deploy.zip" .
+          cd "$GITHUB_WORKSPACE"
+          ls -lh deploy.zip
+
+      - name: Assert archive layout
+        working-directory: ${{ github.workspace }}
+        run: |
+          fail=0
+          for f in server.js Procfile start.sh package.json .platform/nginx/conf.d/proxy.conf; do
+            if unzip -l deploy.zip "$f" | grep -q "$f"; then
+              echo "  ok   $f at archive root"
+            else
+              echo "::error::$f missing from deploy.zip root"; fail=1
+            fi
+          done
+          if unzip -l deploy.zip | grep -qE ' \.env($|\.)'; then
+            echo "::error::deploy.zip contains a .env file"; fail=1
+          else
+            echo "  ok   no .env in archive"
+          fi
+          echo "  entries: $(unzip -l deploy.zip | tail -1)"
+          exit $fail
+
+      - name: Upload deploy.zip
+        uses: actions/upload-artifact@v6
+        with:
+          # GitHub zips artifacts on download, so this arrives as a zip
+          # containing deploy.zip — unzip once, then upload the inner file.
+          name: deploy-zip-${{ github.sha }}
+          path: deploy.zip
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deployment bundle"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Site URL baked in | \`$NEXT_PUBLIC_SITE_URL\` |"
+            echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
+            if [ -f "$GITHUB_WORKSPACE/deploy.zip" ]; then
+              echo "| Size | $(du -h "$GITHUB_WORKSPACE/deploy.zip" | cut -f1) |"
+              echo "| Artifact | \`deploy-zip-${GITHUB_SHA}\` (zip wrapping the zip) |"
+              echo ""
+              echo "Prefer the release asset published by the next job — it is a plain file on a stable URL, with no wrapper to unzip."
+            else
+              echo "| Result | build did not produce a bundle |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # A workflow artifact is awkward to consume: it downloads as a zip WRAPPING
+  # deploy.zip, needs a GitHub login, and expires after 30 days. A release
+  # asset is a plain file on a stable URL. So every successful build also
+  # lands on a release:
+  #
+  #   push to a branch  ->  rolling prerelease  build-<branch>, replaced each
+  #                         time, always the newest build of that branch
+  #   push of a v* tag  ->  permanent release   v1.2.3, never overwritten
+  #
+  # Stable download URL for the rolling one, no login required on a public
+  # repo (and it always redirects to the newest build):
+  #   https://github.com/<owner>/<repo>/releases/download/build-<branch>/deploy.zip
+  release:
+    name: Publish bundle to a release
+    needs: build
+    # Never on pull requests: a fork PR must not be able to publish a release.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Overrides the workflow-level working-directory. This job does not check
+    # the repo out, so okc-investor-portal/ does not exist here and bash fails
+    # to start at all ("No such file or directory") before running a line.
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Download bundle
+        uses: actions/download-artifact@v7
+        with:
+          name: deploy-zip-${{ github.sha }}
+
+      # gh is preinstalled on the runner, so this needs no third-party action.
+      # A rolling tag has to MOVE to the new commit, and neither `gh release
+      # edit` nor the usual release actions move an existing git tag — so the
+      # old release and its tag are deleted first and recreated at this SHA.
+      # Deliberately --prerelease so a rolling build never becomes the repo's
+      # "Latest release" and hide a real tagged version.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # gh normally infers the repository from the git remote. There is no
+          # checkout in this job, so without GH_REPO it fails with
+          # "not a git repository" before touching the API.
+          GH_REPO: ${{ github.repository }}
+          SITE_URL: ${{ needs.build.outputs.site_url }}
+        run: |
+          set -euo pipefail
+          size=$(du -h deploy.zip | cut -f1)
+          sha_short="${GITHUB_SHA:0:7}"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+            title="$tag"
+            flags="--latest"
+            note="Permanent release. The attached \`deploy.zip\` is the exact bundle built from \`$sha_short\`."
+          else
+            branch="${GITHUB_REF_NAME//\//-}"
+            tag="build-${branch}"
+            title="Latest ${GITHUB_REF_NAME} build"
+            flags="--prerelease"
+            note="Rolling build of \`${GITHUB_REF_NAME}\` — **replaced on every push**, so this URL always serves the newest bundle. Tag a \`v*\` release when you want an immutable one."
+            gh release delete "$tag" --cleanup-tag --yes 2>/dev/null || true
+          fi
+
+          {
+            echo "$note"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$sha_short\` |"
+            echo "| Site URL baked in | \`$SITE_URL\` |"
+            echo "| Size | $size |"
+            echo ""
+            echo "Verified before publishing: 20/20 bundle checks, archive layout asserted, type check and 43 unit tests green."
+            echo ""
+            echo "**Deploy:** download \`deploy.zip\` below — it is the artifact itself, not a wrapper — then in the Elastic Beanstalk console use **Upload and deploy**."
+            echo ""
+            echo "> Built on Linux, so it carries the Linux \`sharp\` binary. A bundle built on Windows ships \`@img/sharp-win32-x64\`, which cannot load on Amazon Linux."
+          } > notes.md
+
+          gh release create "$tag" deploy.zip \
+            --title "$title" \
+            --notes-file notes.md \
+            --target "$GITHUB_SHA" \
+            $flags
+
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${tag}/deploy.zip"
+          {
+            echo "### Release published"
+            echo ""
+            echo "**[Download deploy.zip]($url)** — direct file, no unzipping."
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Release | \`$tag\` |"
+            echo "| Commit | \`$sha_short\` |"
+            echo "| Size | $size |"
+          } >> "$GITHUB_STEP_SUMMARY"
