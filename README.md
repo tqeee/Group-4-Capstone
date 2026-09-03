@@ -1,7 +1,5 @@
 # OKC Investor Portal
 
-**🔗 Live app: [okcportal.app](https://okcportal.app/)**
-
 A capstone project by a team of Year 3 Data Science students at Ngee Ann
 Polytechnic, built for the industry partner **OKC**. The portal gives investors,
 operations staff, portfolio managers, and admins a live, role-based view of fund
