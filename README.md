@@ -44,4 +44,4 @@ Tailwind CSS 4 · vitest
 
 ## Team
 
-Built by a team of four as part of the Capstone Project module.
+Built by Jin Rui, Faye, Qi En, and Yinuo as part of the Capstone Project module.
